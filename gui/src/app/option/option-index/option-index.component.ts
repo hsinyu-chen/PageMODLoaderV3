@@ -70,7 +70,12 @@ export class OptionIndexComponent implements OnInit {
       for await (const entry of dirHandle.values()) {
         if (entry.kind === "directory") {
           try {
-            const config = await entry.getFileHandle('config.json', { create: false })
+            let config: FileSystemFileHandle;
+            try {
+              config = await entry.getFileHandle('config.json', { create: false })
+            } catch {
+              continue;
+            }
             const file = await config.getFile();
             const text = await readFile(file);
             const obj = JSON.parse(text) as ModelConfig;
