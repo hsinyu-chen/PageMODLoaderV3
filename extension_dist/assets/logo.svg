@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="512"
+   height="512"
+   viewBox="0 0 135.46666 135.46667"
+   version="1.1"
+   id="svg5"
+   xml:space="preserve"
+   inkscape:version="1.2.2 (732a01da63, 2022-12-09)"
+   sodipodi:docname="logo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><sodipodi:namedview
+     id="namedview7"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.914906"
+     inkscape:cx="294.56578"
+     inkscape:cy="215.86917"
+     inkscape:window-width="1795"
+     inkscape:window-height="1230"
+     inkscape:window-x="1571"
+     inkscape:window-y="115"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" /><defs
+     id="defs2" /><g
+     inkscape:label="圖層 1"
+     inkscape:groupmode="layer"
+     id="layer1"><g
+       style="fill:#33ae3c;fill-opacity:1"
+       id="g191"
+       transform="matrix(0.07248604,0,0,0.07248604,32.940034,117.27541)"><path
+         d="m 360,-360 v -240 h 240 v 240 z m 80,-80 h 80 v -80 h -80 z m -80,320 v -80 h -80 q -33,0 -56.5,-23.5 Q 200,-247 200,-280 v -80 h -80 v -80 h 80 v -80 h -80 v -80 h 80 v -80 q 0,-33 23.5,-56.5 Q 247,-760 280,-760 h 80 v -80 h 80 v 80 h 80 v -80 h 80 v 80 h 80 q 33,0 56.5,23.5 23.5,23.5 23.5,56.5 v 80 h 80 v 80 h -80 v 80 h 80 v 80 h -80 v 80 q 0,33 -23.5,56.5 Q 713,-200 680,-200 h -80 v 80 h -80 v -80 h -80 v 80 z M 680,-280 V -680 H 280 v 400 z M 480,-480 Z"
+         id="path182"
+         style="fill:#33ae3c;fill-opacity:1" /></g><g
+       style="fill:#33ae3c;fill-opacity:1"
+       id="g321"
+       transform="matrix(0.15844029,0,0,0.15844029,-8.3180059,143.78467)"><path
+         d="m 240,-80 q -33,0 -56.5,-23.5 Q 160,-127 160,-160 v -640 q 0,-33 23.5,-56.5 Q 207,-880 240,-880 h 320 l 240,240 v 480 q 0,33 -23.5,56.5 Q 753,-80 720,-80 Z M 520,-600 V -800 H 240 v 640 H 720 V -600 Z M 240,-800 v 200 -200 640 z"
+         id="path312"
+         style="fill:#33ae3c;fill-opacity:1" /></g></g></svg>

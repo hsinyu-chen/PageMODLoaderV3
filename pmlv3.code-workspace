@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "gui"
+		},
+		{
+			"path": "extension_dist"
+		},
+		{
+			"path": "extension"
+		},
+		{
+			"path": "lib"
+		}
+	]
+}

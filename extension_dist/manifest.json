@@ -1,0 +1,35 @@
+{
+    "manifest_version": 3,
+    "name": "Page MOD Loader v3",
+    "description": "javascript & css MOD loader from your local file, use any toolchain for MOD develop!",
+    "version": "0.0.1",
+    "icons": {
+        "32": "assets/logo16.png",
+        "48": "assets/logo48.png",
+        "128": "assets/logo128.png"
+    },
+    "permissions": [
+        "tabs",
+        "storage",
+        "unlimitedStorage",
+        "userScripts"
+    ],
+    "host_permissions": [
+        "*://*/*"
+    ],
+    "action": {
+        "default_popup": "/gui/index.html#/popup"
+    },
+    "options_ui": {
+        "page": "/gui/index.html#/option"
+    },
+    "background": {
+        "service_worker": "src/service_worker.js",
+        "type": "module"
+    },
+    "externally_connectable": {
+        "matches": [
+            "*://*/*"
+        ]
+    }
+}
