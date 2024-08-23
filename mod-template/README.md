@@ -5,9 +5,9 @@ template project for MODs
 
 ## Getting Start
 
-clone this folder , and renamed it to `MyMods`(pick a name you like , just a example)
+clone this folder
 
-and run `.\create.ps1 -Name [your mode name]` to create a MOD
+and run `.\create.ps1 -Name [your mode name]` to create a MOD under MODs folder
 
 edit `config.json` in created folder (change match field as you needed)
 
@@ -24,4 +24,4 @@ const element = document.createElement('div')
 element.textContent = 'hello'
 ```
 
-after MOD developed , select folder `MyMods` in extension option page to upload MODs
+after MOD developed , select folder `MODs` in extension option page to upload MODs

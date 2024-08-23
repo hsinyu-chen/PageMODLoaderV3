@@ -1,4 +1,3 @@
-//https://stackoverflow.com/a/68238924/3908646
 declare global {
 
     namespace JSX {
