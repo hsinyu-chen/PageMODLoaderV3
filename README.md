@@ -3,6 +3,7 @@
 javascript & css MOD loader from your local file, use any toolchain for MOD develop
 
 ## Getting Start
+# **you have to enable development mode in your extension page for this extension to work!**
 
 ### 1. create root folder for your MODs
 
