@@ -7,12 +7,22 @@
     "types": [
       "@types/chrome",
       "@types/wicg-file-system-access"
-    ]
+    ],
+    "paths": {
+      "@lib/*": [
+        "../lib/*"
+      ]
+    }
   },
   "files": [
     "src/main.ts"
   ],
   "include": [
     "src/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../libs"
+    }
   ]
 }

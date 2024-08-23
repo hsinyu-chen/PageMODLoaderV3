@@ -7,7 +7,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDividerModule } from '@angular/material/divider';
 import { FormsModule } from '@angular/forms';
-import { Mod, ModDb, ModelConfig } from '../../../../lib/types';
+import { Mod, ModDb, ModelConfig } from '@lib/types';
 
 @Component({
   selector: 'app-option-index',

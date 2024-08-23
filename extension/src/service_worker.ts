@@ -1,5 +1,5 @@
-import { Mod, ModDb, UserScriptClean, UserScriptNotify } from "../lib/types";
-import { ModExcutionResultDb } from "../lib/types";
+import { Mod, ModDb, UserScriptClean, UserScriptNotify } from "@lib/types";
+import { ModExcutionResultDb } from "@lib/types";
 
 function isUserScriptsAvailable() {
     try {

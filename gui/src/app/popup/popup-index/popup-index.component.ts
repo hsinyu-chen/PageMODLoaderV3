@@ -2,7 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
 import { RouterModule, RouterOutlet } from '@angular/router';
-import { ModExcutingResult, ModExcutionResultDb } from '../../../../lib/types';
+import { ModExcutingResult, ModExcutionResultDb } from '@lib/types';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
