@@ -24,7 +24,7 @@
         "page": "/gui/index.html#/option"
     },
     "background": {
-        "service_worker": "src/service_worker.js",
+        "service_worker": "service_worker.js",
         "type": "module"
     },
     "externally_connectable": {

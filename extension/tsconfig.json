@@ -16,7 +16,7 @@
   },
   "references": [
     {
-      "path": "../libs"
+      "path": "../lib"
     }
   ]
 }

@@ -126,4 +126,3 @@ chrome.runtime.onInstalled.addListener(details => {
         registScripts();
     }
 });
-export {};
