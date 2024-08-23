@@ -5,8 +5,7 @@ template project for MODs
 
 #Getting Start
 
-clone this folder
-run `create.ps1 -Name [your mode name]` to create a MOD
+clone this folder and run `.\create.ps1 -Name [your mode name]` to create a MOD
 edit config.json in created folder (change match field as you needed)
 run npm i in created folder
 
