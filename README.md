@@ -60,3 +60,5 @@ you can put any files (like Typescript source code) in the folder , the extensio
 
 the `path` in `inject` setting can use nested path like `dist/main/abc.js`
 
+I have created a project template and basic file scaffolding script in [here]('mod-template')
+
