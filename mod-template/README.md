@@ -7,7 +7,7 @@ template project for MODs
 
 clone this folder
 
-and run `.\create.ps1 -Name [your mode name]` to create a MOD under MODs folder
+and run `.\create.ps1 -Name [your MOD name]` to create a MOD under MODs folder
 
 edit `config.json` in created folder (change match field as you needed)
 
