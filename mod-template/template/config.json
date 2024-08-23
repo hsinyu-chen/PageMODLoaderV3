@@ -1,0 +1,13 @@
+{
+    "match":"https://www.template.com/",
+    "inject": [
+        {
+            "path": "dist/index.js",
+            "type": "script"
+        },
+        {
+            "path": "dist/index.css",
+            "type": "style"
+        }
+    ]
+}

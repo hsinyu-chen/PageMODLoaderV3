@@ -1,0 +1,25 @@
+{
+  "name": "template",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c rollup.config.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup-plugin-scss": "^4.0.0",
+    "rollup-plugin-typescript-paths": "^1.5.0",
+    "rollup-plugin-typescript2": "^0.36.0",
+    "sass": "1.77.6",
+    "tslib": "^2.6.3",
+    "typescript": "^5.5.4"
+  }
+}

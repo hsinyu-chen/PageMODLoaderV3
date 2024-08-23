@@ -1,11 +1,10 @@
 {
   "compilerOptions": {
-    "target": "ESNext", /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
-    "module": "ESNext", /* Specify what module code is generated. */
+    "target": "ES2022", /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
+    "module": "ES2022", /* Specify what module code is generated. */
     "types": [
       "@types/chrome"
     ], /* Specify type package names to be included without being referenced in a source file. */
-    "outDir": "../extension_dist", /* Specify an output folder for all emitted files. */
     "esModuleInterop": true, /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */
     "forceConsistentCasingInFileNames": true, /* Ensure that casing is correct in imports. */
     "strict": true, /* Enable all strict type-checking options. */
