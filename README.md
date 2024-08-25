@@ -62,11 +62,13 @@ you can put any files (like Typescript source code) in the folder , the extensio
 
 the `path` in `inject` setting can use nested path like `dist/main/abc.js`
 
+I have created a project template and basic file scaffolding script in [here](mod-template)
+
 ## for who want build extension localy
 
 1. clone repo
 2. run `npm i` and `npm build` in gui and extension folder
 3. load unpackaged extension from `extension_dist` folder 
 
-I have created a project template and basic file scaffolding script in [here](mod-template)
+
 
