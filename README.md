@@ -64,7 +64,7 @@ the `path` in `inject` setting can use nested path like `dist/main/abc.js`
 
 I have created a project template and basic file scaffolding script in [here](mod-template)
 
-## for who want build extension localy
+## for who want build extension locally
 
 1. clone repo
 2. run `npm i` and `npm build` in gui and extension folder
