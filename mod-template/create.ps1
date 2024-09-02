@@ -16,5 +16,5 @@ if ($Name) {
     }
     $json = Get-Content -Raw -Path '.\template\package.json' | ConvertFrom-Json
     $json.name = $Name
-    $json | ConvertTo-Json | Out-File "MODs\$($Name)\package.json"
+    $json | ConvertTo-Json | Out-File -encoding utf8 "MODs\$($Name)\package.json"
 }
