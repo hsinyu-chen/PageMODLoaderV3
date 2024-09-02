@@ -4,6 +4,7 @@ javascript & css MOD loader from your local file, use any toolchain for MOD deve
 
 ## Getting Start
 install from chrome web store [here](https://chromewebstore.google.com/detail/page-mod-loader-v3/mkchjogfokebijmjljphfmloimhaimcd)
+install from edge add-ons [here](https://microsoftedge.microsoft.com/addons/detail/page-mod-loader-v3/plgigadbfamioehogbacepodfafjlbib)
 # **you have to enable development mode in your extension page for this extension to work!**
 
 ### 1. create root folder for your MODs
