@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { getFileHandleDeep, readFile } from '../../../helpers';
+import { saveDirHandle, loadDirHandle } from '../../../dir-handle-db';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTableModule } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -27,8 +28,8 @@ export class OptionIndexComponent implements OnInit {
   ngOnInit(): void {
     (async () => {
       await this.loadMods();
+      await this.restoreHandle();
     })();
-
   }
   readonly mods = signal<Mod[]>([]);
   updateSyncContext = Promise.resolve();
@@ -61,11 +62,22 @@ export class OptionIndexComponent implements OnInit {
   }
   private snakeBar = inject(MatSnackBar);
   public currentHandle = signal<FileSystemDirectoryHandle | undefined>(undefined);
+  private async restoreHandle() {
+    try {
+      const handle = await loadDirHandle();
+      if (handle) {
+        this.currentHandle.set(handle);
+      }
+    } catch (e) {
+      console.warn('Failed to restore directory handle from IndexedDB', e);
+    }
+  }
   async resync(dirHandle: FileSystemDirectoryHandle | undefined) {
     const values = await chrome.storage.local.get('mods')
     const current = values['mods'] ?? {};
     if (dirHandle && (await dirHandle.requestPermission({ mode: 'read' })) == 'granted') {
       this.currentHandle.set(dirHandle);
+      await saveDirHandle(dirHandle);
       const mods: ModDb = {}
       for await (const entry of dirHandle.values()) {
         if (entry.kind === "directory") {
@@ -113,7 +125,8 @@ export class OptionIndexComponent implements OnInit {
     }
   }
   async selectDir() {
-    await this.resync(await window.showDirectoryPicker({ mode: 'read' }))
+    const handle = await window.showDirectoryPicker({ mode: 'read' });
+    await this.resync(handle);
   }
 
   private async callUpdateRegist() {
