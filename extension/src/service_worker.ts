@@ -124,7 +124,14 @@ chrome.runtime.onMessageExternal.addListener((request: UserScriptNotify | UserSc
     }
 })
 chrome.runtime.onInstalled.addListener(details => {
-    if (details.reason === chrome.runtime.OnInstalledReason.UPDATE) {
+    if (
+        details.reason === chrome.runtime.OnInstalledReason.INSTALL ||
+        details.reason === chrome.runtime.OnInstalledReason.UPDATE
+    ) {
         registScripts();
     }
 });
+chrome.runtime.onStartup.addListener(() => {
+    registScripts();
+});
+registScripts();
