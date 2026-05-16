@@ -134,11 +134,4 @@ chrome.runtime.onInstalled.addListener(details => {
 chrome.runtime.onStartup.addListener(() => {
     registScripts();
 });
-if (chrome.management?.onEnabled) {
-    chrome.management.onEnabled.addListener(info => {
-        if (info.id === chrome.runtime.id) {
-            registScripts();
-        }
-    });
-}
 registScripts();
