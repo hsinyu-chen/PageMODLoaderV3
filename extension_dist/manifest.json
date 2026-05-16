@@ -12,7 +12,8 @@
     "tabs",
     "storage",
     "unlimitedStorage",
-    "userScripts"
+    "userScripts",
+    "management"
   ],
   "host_permissions": [
     "*://*/*"

@@ -26,12 +26,21 @@ import { Mod, ModDb, ModelConfig } from '@lib/types';
 })
 export class OptionIndexComponent implements OnInit {
   ngOnInit(): void {
+    this.userScriptsAvailable.set(this.checkUserScriptsAvailable());
     (async () => {
       await this.loadMods();
       await this.restoreHandle();
     })();
   }
   readonly mods = signal<Mod[]>([]);
+  readonly userScriptsAvailable = signal<boolean>(true);
+  private checkUserScriptsAvailable(): boolean {
+    try {
+      return !!chrome.userScripts;
+    } catch {
+      return false;
+    }
+  }
   updateSyncContext = Promise.resolve();
   getDisplayMatch(match: string | string[]) {
     return typeof match === 'string' ? match : match.join(',');

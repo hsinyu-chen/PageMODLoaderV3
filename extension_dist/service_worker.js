@@ -122,7 +122,19 @@ chrome.runtime.onMessageExternal.addListener((request, sender, response) => {
     }
 });
 chrome.runtime.onInstalled.addListener(details => {
-    if (details.reason === chrome.runtime.OnInstalledReason.UPDATE) {
+    if (details.reason === chrome.runtime.OnInstalledReason.INSTALL ||
+        details.reason === chrome.runtime.OnInstalledReason.UPDATE) {
         registScripts();
     }
 });
+chrome.runtime.onStartup.addListener(() => {
+    registScripts();
+});
+if (chrome.management?.onEnabled) {
+    chrome.management.onEnabled.addListener(info => {
+        if (info.id === chrome.runtime.id) {
+            registScripts();
+        }
+    });
+}
+registScripts();

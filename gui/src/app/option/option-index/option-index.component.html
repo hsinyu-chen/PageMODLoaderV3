@@ -7,6 +7,21 @@
     }
     <span>**you have to enable development mode in your extension page for this extension to work!</span>
 </div>
+@if(!userScriptsAvailable()){
+<div class="user-scripts-warning">
+    <strong>User Scripts API is not available.</strong>
+    <p>
+        Please open <code>edge://extensions</code> (or <code>chrome://extensions</code>), turn on
+        <em>Allow user scripts</em> / <em>Developer mode</em> for this extension, then
+        <strong>completely close and reopen the browser</strong> so the setting takes effect.
+    </p>
+    <p>
+        On Microsoft Edge, toggling the per-extension switch alone does not rebind the
+        <code>chrome.userScripts</code> API to the running service worker; a full browser
+        restart (or disabling and re-enabling the extension) is required.
+    </p>
+</div>
+}
 <mat-divider></mat-divider>
 <mat-accordion>
     @for(mod of mods();track mod.name){
