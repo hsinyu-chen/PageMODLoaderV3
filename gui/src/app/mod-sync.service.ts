@@ -23,7 +23,14 @@ export class ModSyncService {
   }
 
   async selectDir(): Promise<void> {
-    const handle = await window.showDirectoryPicker({ mode: 'read' });
+    let handle: FileSystemDirectoryHandle;
+    try {
+      handle = await window.showDirectoryPicker({ mode: 'read' });
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      console.error('Failed to open directory picker', e);
+      return;
+    }
     await this.resync(handle);
   }
 
@@ -51,30 +58,33 @@ export class ModSyncService {
         const file = await config.getFile();
         const text = await readFile(file);
         const obj = JSON.parse(text) as ModelConfig;
+        if (!obj || !Array.isArray(obj.inject)) {
+          throw new Error('invalid config.json: missing or non-array "inject"');
+        }
         const enabled = current[entry.name]?.enabled !== false;
         const mod: Mod = { match: obj.match, name: entry.name, files: [], enabled };
 
-        for (const inject of obj.inject) {
+        for (const injection of obj.inject) {
           try {
-            const fileHandle = await getFileHandleDeep(entry, inject.path);
+            const fileHandle = await getFileHandleDeep(entry, injection.path);
             if (fileHandle.kind === 'file') {
               const content = await readFile(await fileHandle.getFile());
               mod.files.push({
-                path: inject.path,
+                path: injection.path,
                 content,
-                type: inject.type,
+                type: injection.type,
                 file: fileHandle.name,
               });
             }
           } catch (e) {
-            throw new Error(`error access file ${inject.path}: ${e}`);
+            throw new Error(`error access file ${injection.path}: ${e}`);
           }
         }
         if (mod.files.length && mod.match) {
           mods[entry.name] = mod;
         }
       } catch (e) {
-        this.snackBar.open(`error loading MOD ${entry.name} ${e}`);
+        this.snackBar.open(`error loading MOD ${entry.name}: ${e}`, 'OK', { duration: 4000 });
       }
     }
     await chrome.storage.local.set({ mods });
