@@ -59,7 +59,11 @@ export class ModListComponent implements OnInit, OnDestroy {
   updateState(_mod: Mod) {
     const last = this.updateSyncContext;
     this.updateSyncContext = (async () => {
-      await last;
+      try {
+        await last;
+      } catch (e) {
+        console.error('Previous mod update failed', e);
+      }
       const update: ModDb = {};
       for (const mod of this.mods()) {
         update[mod.name] = mod;

@@ -51,7 +51,7 @@ export class ModSyncService {
         const file = await config.getFile();
         const text = await readFile(file);
         const obj = JSON.parse(text) as ModelConfig;
-        const enabled = current[entry.name]?.enabled === false ? false : true;
+        const enabled = current[entry.name]?.enabled !== false;
         const mod: Mod = { match: obj.match, name: entry.name, files: [], enabled };
 
         for (const inject of obj.inject) {
@@ -67,7 +67,7 @@ export class ModSyncService {
               });
             }
           } catch (e) {
-            throw `error access file ${inject.path} ${e}`;
+            throw new Error(`error access file ${inject.path}: ${e}`);
           }
         }
         if (mod.files.length && mod.match) {
