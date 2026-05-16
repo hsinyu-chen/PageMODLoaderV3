@@ -3,10 +3,22 @@
     width: 800px;
 }
 
+.row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+}
+
 button {
     margin: 5px;
 }
 
 span.match {
     color: green;
+}
+
+table {
+    width: 100%;
 }
