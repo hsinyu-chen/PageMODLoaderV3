@@ -2,27 +2,28 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTabsModule } from '@angular/material/tabs';
 import { RouterModule, RouterOutlet } from '@angular/router';
 import { ModExcutingResult, ModExcutionResultDb } from '@lib/types';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ModSyncService } from '../../mod-sync.service';
-
-type ScriptMatch = {
-  pattern: string;
-  isMatch: boolean;
-};
-
-type ScriptData = {
-  name: string;
-  isMatch: boolean;
-  matches: ScriptMatch[];
-};
+import { ModListComponent } from '../../mod-list/mod-list.component';
 
 @Component({
   selector: 'app-popup-index',
   standalone: true,
-  imports: [RouterOutlet, RouterModule, MatButtonModule, MatTableModule, MatSnackBarModule, MatIconModule, MatTooltipModule],
+  imports: [
+    RouterOutlet,
+    RouterModule,
+    MatButtonModule,
+    MatTableModule,
+    MatSnackBarModule,
+    MatTabsModule,
+    MatIconModule,
+    MatTooltipModule,
+    ModListComponent,
+  ],
   templateUrl: './popup-index.component.html',
   styleUrl: './popup-index.component.scss'
 })
@@ -44,9 +45,6 @@ export class PopupIndexComponent implements OnInit {
         }
       }
     })()
-  }
-  async openOption(e: Event) {
-    chrome.tabs.create({ 'url': `chrome-extension://${chrome.runtime.id}/gui/index.html#option` });
   }
   async selectDir() {
     await this.sync.selectDir();
