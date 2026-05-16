@@ -1,6 +1,5 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { ModSyncService } from '../../mod-sync.service';
 import { ModListComponent } from '../../mod-list/mod-list.component';
@@ -10,7 +9,6 @@ import { ModListComponent } from '../../mod-list/mod-list.component';
   standalone: true,
   imports: [
     MatButtonModule,
-    MatSnackBarModule,
     MatDividerModule,
     ModListComponent,
   ],

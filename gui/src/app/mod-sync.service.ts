@@ -31,7 +31,10 @@ export class ModSyncService {
     if (!dirHandle) return;
     const values = await chrome.storage.local.get('mods');
     const current = (values['mods'] ?? {}) as ModDb;
-    if ((await dirHandle.requestPermission({ mode: 'read' })) !== 'granted') return;
+    if ((await dirHandle.requestPermission({ mode: 'read' })) !== 'granted') {
+      this.snackBar.open('Permission to read the mod folder was denied.', 'OK', { duration: 4000 });
+      return;
+    }
 
     this.currentHandle.set(dirHandle);
     await saveDirHandle(dirHandle);

@@ -1,9 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
-import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
-import { RouterModule, RouterOutlet } from '@angular/router';
 import { ModExcutingResult, ModExcutionResultDb } from '@lib/types';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -14,11 +12,8 @@ import { ModListComponent } from '../../mod-list/mod-list.component';
   selector: 'app-popup-index',
   standalone: true,
   imports: [
-    RouterOutlet,
-    RouterModule,
     MatButtonModule,
     MatTableModule,
-    MatSnackBarModule,
     MatTabsModule,
     MatIconModule,
     MatTooltipModule,

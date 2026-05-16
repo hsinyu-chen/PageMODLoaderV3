@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTableModule } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -17,13 +17,17 @@ import { Mod, ModDb } from '@lib/types';
   templateUrl: './mod-list.component.html',
   styleUrl: './mod-list.component.scss',
 })
-export class ModListComponent implements OnInit {
+export class ModListComponent implements OnInit, OnDestroy {
   readonly mods = signal<Mod[]>([]);
   private updateSyncContext = Promise.resolve();
 
   ngOnInit(): void {
     this.loadMods();
     chrome.storage.onChanged.addListener(this.onStorageChanged);
+  }
+
+  ngOnDestroy(): void {
+    chrome.storage.onChanged.removeListener(this.onStorageChanged);
   }
 
   private onStorageChanged = (
