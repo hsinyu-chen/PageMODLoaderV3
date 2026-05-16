@@ -2,7 +2,7 @@
     @for(mod of mods();track mod.name){
     <mat-expansion-panel>
         <mat-expansion-panel-header>
-            <mat-panel-title><mat-slide-toggle [(ngModel)]="mod.enabled" (toggleChange)="updateState(mod)"
+            <mat-panel-title><mat-slide-toggle [(ngModel)]="mod.enabled" (change)="updateState(mod)"
                     (click)="$event.stopPropagation()">{{mod.name}}</mat-slide-toggle></mat-panel-title>
             <mat-panel-description>{{getDisplayMatch(mod.match)}}</mat-panel-description>
         </mat-expansion-panel-header>

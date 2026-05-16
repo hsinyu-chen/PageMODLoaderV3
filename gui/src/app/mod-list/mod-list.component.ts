@@ -1,7 +1,8 @@
-import { Component, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTableModule } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
 import { Mod, ModDb } from '@lib/types';
 
@@ -19,6 +20,7 @@ import { Mod, ModDb } from '@lib/types';
 })
 export class ModListComponent implements OnInit, OnDestroy {
   readonly mods = signal<Mod[]>([]);
+  private snackBar = inject(MatSnackBar);
   private updateSyncContext = Promise.resolve();
 
   ngOnInit(): void {
@@ -68,8 +70,14 @@ export class ModListComponent implements OnInit, OnDestroy {
       for (const mod of this.mods()) {
         update[mod.name] = mod;
       }
-      await chrome.storage.local.set({ mods: update });
-      await chrome.runtime.sendMessage('update');
+      try {
+        await chrome.storage.local.set({ mods: update });
+        await chrome.runtime.sendMessage('update');
+      } catch (e) {
+        console.error('Failed to persist mod state', e);
+        this.snackBar.open(`Failed to save mod state: ${e}`, 'OK', { duration: 4000 });
+        await this.loadMods();
+      }
     })();
   }
 }

@@ -52,14 +52,18 @@ export class ModSyncService {
         let config: FileSystemFileHandle;
         try {
           config = await entry.getFileHandle('config.json', { create: false });
-        } catch {
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'NotFoundError') {
+            continue;
+          }
+          console.warn(`Error accessing config.json in ${entry.name}:`, e);
           continue;
         }
         const file = await config.getFile();
         const text = await readFile(file);
         const obj = JSON.parse(text) as ModelConfig;
-        if (!obj || !Array.isArray(obj.inject)) {
-          throw new Error('invalid config.json: missing or non-array "inject"');
+        if (!obj || !obj.match || !Array.isArray(obj.inject)) {
+          throw new Error('invalid config.json: missing or invalid "match" or "inject"');
         }
         const enabled = current[entry.name]?.enabled !== false;
         const mod: Mod = { match: obj.match, name: entry.name, files: [], enabled };
