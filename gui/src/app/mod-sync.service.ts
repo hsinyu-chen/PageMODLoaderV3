@@ -91,6 +91,11 @@ export class ModSyncService {
         this.snackBar.open(`error loading MOD ${entry.name}: ${e}`, 'OK', { duration: 4000 });
       }
     }
+    const latest = ((await chrome.storage.local.get('mods'))['mods'] ?? {}) as ModDb;
+    for (const name of Object.keys(mods)) {
+      const live = latest[name];
+      if (live) mods[name].enabled = live.enabled;
+    }
     await chrome.storage.local.set({ mods });
     await chrome.runtime.sendMessage('update');
   }
