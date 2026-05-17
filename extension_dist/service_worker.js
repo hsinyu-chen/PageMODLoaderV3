@@ -61,24 +61,35 @@ function buildScripts(mod) {
     }
     return js;
 }
-async function registScripts() {
-    if (isUserScriptsAvailable()) {
-        await chrome.userScripts.unregister();
-        const values = await chrome.storage.local.get('mods');
-        if (values['mods']) {
-            for (const [, mod] of Object.entries(values['mods'])) {
+let registerChain = Promise.resolve();
+function registScripts() {
+    registerChain = registerChain.then(async () => {
+        try {
+            if (!isUserScriptsAvailable())
+                return;
+            const values = await chrome.storage.local.get('mods');
+            const scripts = [];
+            for (const [, mod] of Object.entries((values['mods'] ?? {}))) {
                 if (mod.enabled) {
-                    chrome.userScripts.register([{
-                            id: mod.name,
-                            matches: typeof mod.match === 'string' ? [mod.match] : mod.match,
-                            js: buildScripts(mod),
-                            world: 'MAIN',
-                            runAt: 'document_end'
-                        }]);
+                    scripts.push({
+                        id: mod.name,
+                        matches: typeof mod.match === 'string' ? [mod.match] : mod.match,
+                        js: buildScripts(mod),
+                        world: 'MAIN',
+                        runAt: 'document_end'
+                    });
                 }
             }
+            await chrome.userScripts.unregister();
+            if (scripts.length) {
+                await chrome.userScripts.register(scripts);
+            }
         }
-    }
+        catch (e) {
+            console.error('registScripts failed:', e);
+        }
+    });
+    return registerChain;
 }
 const tabScriptTracker = {};
 chrome.tabs.onCreated.addListener((tab) => {
