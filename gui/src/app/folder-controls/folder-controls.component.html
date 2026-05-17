@@ -1,0 +1,22 @@
+<div class="row">
+    <button mat-raised-button (click)="selectDir()">Select Mod Folder</button>
+    @if(currentHandle()){
+    <span>current : {{currentHandle()?.name}}</span>
+    <button mat-raised-button (click)="resync()">Re Sync</button>
+    }
+</div>
+@if(!userScriptsAvailable()){
+<div class="user-scripts-warning">
+    <strong>User Scripts API is not available.</strong>
+    <p>
+        Please open <code>edge://extensions</code> (or <code>chrome://extensions</code>), turn on
+        <em>Allow user scripts</em> / <em>Developer mode</em> for this extension, then
+        <strong>completely close and reopen the browser</strong> so the setting takes effect.
+    </p>
+    <p>
+        On Microsoft Edge, toggling the per-extension switch alone does not rebind the
+        <code>chrome.userScripts</code> API to the running service worker; a full browser
+        restart (or disabling and re-enabling the extension) is required.
+    </p>
+</div>
+}
