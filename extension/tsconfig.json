@@ -12,10 +12,5 @@
     "paths": {
       "@lib/*":["../lib/*"]
     }
-  },
-  "references": [
-    {
-      "path": "../lib"
-    }
-  ]
+  }
 }

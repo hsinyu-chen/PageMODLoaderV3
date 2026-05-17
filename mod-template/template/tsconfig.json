@@ -10,17 +10,12 @@
     "jsx": "react",
     "paths": {
       "@libs/*": [
-        "../../libs/*"
+        "../libs/*"
       ]
     }
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx"
-  ],
-  "references": [
-    {
-      "path": "../../libs"
-    }
   ]
 }
