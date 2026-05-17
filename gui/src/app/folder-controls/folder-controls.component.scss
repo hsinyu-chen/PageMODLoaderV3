@@ -1,6 +1,14 @@
 :host {
     display: block;
 
+    .row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px;
+    }
+
     .user-scripts-warning {
         margin: 1em 0;
         padding: 1em;
