@@ -64,25 +64,29 @@ function buildScripts(mod: Mod) {
 }
 let registerChain: Promise<void> = Promise.resolve();
 function registScripts(): Promise<void> {
-    registerChain = registerChain.catch(() => {}).then(async () => {
-        if (!isUserScriptsAvailable()) return;
-        await chrome.userScripts.unregister();
-        const values = await chrome.storage.local.get('mods')
-        if (!values['mods']) return;
-        const scripts: chrome.userScripts.RegisteredUserScript[] = [];
-        for (const [, mod] of Object.entries(values['mods'] as ModDb)) {
-            if (mod.enabled) {
-                scripts.push({
-                    id: mod.name,
-                    matches: typeof mod.match === 'string' ? [mod.match] : mod.match,
-                    js: buildScripts(mod),
-                    world: 'MAIN',
-                    runAt: 'document_end'
-                });
+    registerChain = registerChain.then(async () => {
+        try {
+            if (!isUserScriptsAvailable()) return;
+            await chrome.userScripts.unregister();
+            const values = await chrome.storage.local.get('mods')
+            if (!values['mods']) return;
+            const scripts: chrome.userScripts.RegisteredUserScript[] = [];
+            for (const [, mod] of Object.entries(values['mods'] as ModDb)) {
+                if (mod.enabled) {
+                    scripts.push({
+                        id: mod.name,
+                        matches: typeof mod.match === 'string' ? [mod.match] : mod.match,
+                        js: buildScripts(mod),
+                        world: 'MAIN',
+                        runAt: 'document_end'
+                    });
+                }
             }
-        }
-        if (scripts.length) {
-            await chrome.userScripts.register(scripts);
+            if (scripts.length) {
+                await chrome.userScripts.register(scripts);
+            }
+        } catch (e) {
+            console.error('registScripts failed:', e);
         }
     });
     return registerChain;
