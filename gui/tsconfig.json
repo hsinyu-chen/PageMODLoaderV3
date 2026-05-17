@@ -4,6 +4,7 @@
   "compileOnSave": false,
   "compilerOptions": {
     "noEmit": true,
+    "rootDir": "..",
     "strict": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
