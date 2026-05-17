@@ -12,14 +12,13 @@ import { ModSyncService } from '../mod-sync.service';
 export class FolderControlsComponent implements OnInit {
   private sync = inject(ModSyncService);
   readonly currentHandle = this.sync.currentHandle;
-  readonly userScriptsAvailable = signal<boolean>(true);
+  readonly userScriptsAvailable = signal<boolean>(FolderControlsComponent.checkUserScriptsAvailable());
 
   ngOnInit(): void {
-    this.userScriptsAvailable.set(this.checkUserScriptsAvailable());
     this.sync.restoreHandle();
   }
 
-  private checkUserScriptsAvailable(): boolean {
+  private static checkUserScriptsAvailable(): boolean {
     try {
       return !!chrome.userScripts;
     } catch {

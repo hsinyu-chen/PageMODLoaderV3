@@ -22,7 +22,7 @@ export class ModListComponent implements OnInit, OnDestroy {
   readonly mods = signal<Mod[]>([]);
   private snackBar = inject(MatSnackBar);
   private updateSyncContext = Promise.resolve();
-  private lastEmittedWriteId: string | null = null;
+  private pendingWriteIds = new Set<string>();
 
   ngOnInit(): void {
     this.loadMods();
@@ -39,7 +39,7 @@ export class ModListComponent implements OnInit, OnDestroy {
   ) => {
     if (areaName !== 'local' || !changes['mods']) return;
     const incomingWriteId = changes['modsWriteId']?.newValue;
-    if (typeof incomingWriteId === 'string' && incomingWriteId === this.lastEmittedWriteId) return;
+    if (typeof incomingWriteId === 'string' && this.pendingWriteIds.delete(incomingWriteId)) return;
     this.applyModDb(changes['mods'].newValue as ModDb | undefined);
   };
 
@@ -72,12 +72,13 @@ export class ModListComponent implements OnInit, OnDestroy {
       for (const mod of this.mods()) {
         update[mod.name] = mod;
       }
+      const writeId = crypto.randomUUID();
+      this.pendingWriteIds.add(writeId);
       try {
-        const writeId = crypto.randomUUID();
-        this.lastEmittedWriteId = writeId;
         await chrome.storage.local.set({ mods: update, modsWriteId: writeId });
         await chrome.runtime.sendMessage('update');
       } catch (e) {
+        this.pendingWriteIds.delete(writeId);
         console.error('Failed to persist mod state', e);
         this.snackBar.open(`Failed to save mod state: ${e}`, 'OK', { duration: 4000 });
         await this.loadMods();
