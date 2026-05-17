@@ -22,6 +22,7 @@ export class ModListComponent implements OnInit, OnDestroy {
   readonly mods = signal<Mod[]>([]);
   private snackBar = inject(MatSnackBar);
   private updateSyncContext = Promise.resolve();
+  private lastWrittenSerialized = '';
 
   ngOnInit(): void {
     this.loadMods();
@@ -36,9 +37,10 @@ export class ModListComponent implements OnInit, OnDestroy {
     changes: { [key: string]: chrome.storage.StorageChange },
     areaName: chrome.storage.AreaName
   ) => {
-    if (areaName === 'local' && changes['mods']) {
-      this.applyModDb(changes['mods'].newValue as ModDb | undefined);
-    }
+    if (areaName !== 'local' || !changes['mods']) return;
+    const incoming = JSON.stringify(changes['mods'].newValue ?? null);
+    if (incoming === this.lastWrittenSerialized) return;
+    this.applyModDb(changes['mods'].newValue as ModDb | undefined);
   };
 
   async loadMods() {
@@ -58,19 +60,16 @@ export class ModListComponent implements OnInit, OnDestroy {
     return typeof match === 'string' ? match : match.join(',');
   }
 
-  updateState(_mod: Mod) {
+  updateState() {
     const last = this.updateSyncContext;
     this.updateSyncContext = (async () => {
-      try {
-        await last;
-      } catch (e) {
-        console.error('Previous mod update failed', e);
-      }
+      await last;
       const update: ModDb = {};
       for (const mod of this.mods()) {
         update[mod.name] = mod;
       }
       try {
+        this.lastWrittenSerialized = JSON.stringify(update);
         await chrome.storage.local.set({ mods: update });
         await chrome.runtime.sendMessage('update');
       } catch (e) {

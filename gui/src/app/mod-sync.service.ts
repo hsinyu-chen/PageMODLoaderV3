@@ -84,7 +84,7 @@ export class ModSyncService {
             throw new Error(`error access file ${injection.path}: ${e}`);
           }
         }
-        if (mod.files.length && mod.match) {
+        if (mod.files.length) {
           mods[entry.name] = mod;
         }
       } catch (e) {

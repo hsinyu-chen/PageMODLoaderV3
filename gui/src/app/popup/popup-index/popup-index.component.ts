@@ -1,35 +1,31 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
+import { Component, OnInit, signal } from '@angular/core';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ModExcutingResult, ModExcutionResultDb } from '@lib/types';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ModSyncService } from '../../mod-sync.service';
+import { FolderControlsComponent } from '../../folder-controls/folder-controls.component';
 import { ModListComponent } from '../../mod-list/mod-list.component';
 
 @Component({
   selector: 'app-popup-index',
   standalone: true,
   imports: [
-    MatButtonModule,
     MatTableModule,
     MatTabsModule,
     MatIconModule,
     MatTooltipModule,
+    FolderControlsComponent,
     ModListComponent,
   ],
   templateUrl: './popup-index.component.html',
   styleUrl: './popup-index.component.scss'
 })
 export class PopupIndexComponent implements OnInit {
-  private sync = inject(ModSyncService);
   current = signal<ModExcutingResult[]>([]);
-  readonly currentHandle = this.sync.currentHandle;
 
   ngOnInit(): void {
     (async () => {
-      await this.sync.restoreHandle();
       const currentTab = await chrome.tabs.query({ currentWindow: true, active: true });
       if (currentTab[0]) {
         const results = await chrome.runtime.sendMessage({ query: currentTab[0].id }) as ModExcutionResultDb
@@ -40,11 +36,5 @@ export class PopupIndexComponent implements OnInit {
         }
       }
     })()
-  }
-  async selectDir() {
-    await this.sync.selectDir();
-  }
-  async resync(dirHandle: FileSystemDirectoryHandle | undefined) {
-    await this.sync.resync(dirHandle);
   }
 }
