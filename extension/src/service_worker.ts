@@ -67,11 +67,9 @@ function registScripts(): Promise<void> {
     registerChain = registerChain.then(async () => {
         try {
             if (!isUserScriptsAvailable()) return;
-            await chrome.userScripts.unregister();
             const values = await chrome.storage.local.get('mods')
-            if (!values['mods']) return;
             const scripts: chrome.userScripts.RegisteredUserScript[] = [];
-            for (const [, mod] of Object.entries(values['mods'] as ModDb)) {
+            for (const [, mod] of Object.entries((values['mods'] ?? {}) as ModDb)) {
                 if (mod.enabled) {
                     scripts.push({
                         id: mod.name,
@@ -82,6 +80,7 @@ function registScripts(): Promise<void> {
                     });
                 }
             }
+            await chrome.userScripts.unregister();
             if (scripts.length) {
                 await chrome.userScripts.register(scripts);
             }

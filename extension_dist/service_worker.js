@@ -67,12 +67,9 @@ function registScripts() {
         try {
             if (!isUserScriptsAvailable())
                 return;
-            await chrome.userScripts.unregister();
             const values = await chrome.storage.local.get('mods');
-            if (!values['mods'])
-                return;
             const scripts = [];
-            for (const [, mod] of Object.entries(values['mods'])) {
+            for (const [, mod] of Object.entries((values['mods'] ?? {}))) {
                 if (mod.enabled) {
                     scripts.push({
                         id: mod.name,
@@ -83,6 +80,7 @@ function registScripts() {
                     });
                 }
             }
+            await chrome.userScripts.unregister();
             if (scripts.length) {
                 await chrome.userScripts.register(scripts);
             }
