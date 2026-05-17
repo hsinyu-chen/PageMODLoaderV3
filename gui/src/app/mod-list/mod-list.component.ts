@@ -22,8 +22,7 @@ export class ModListComponent implements OnInit, OnDestroy {
   readonly mods = signal<Mod[]>([]);
   private snackBar = inject(MatSnackBar);
   private updateSyncContext = Promise.resolve();
-  private nextWriteId = 0;
-  private lastEmittedWriteId = -1;
+  private lastEmittedWriteId: string | null = null;
 
   ngOnInit(): void {
     this.loadMods();
@@ -40,7 +39,7 @@ export class ModListComponent implements OnInit, OnDestroy {
   ) => {
     if (areaName !== 'local' || !changes['mods']) return;
     const incomingWriteId = changes['modsWriteId']?.newValue;
-    if (typeof incomingWriteId === 'number' && incomingWriteId === this.lastEmittedWriteId) return;
+    if (typeof incomingWriteId === 'string' && incomingWriteId === this.lastEmittedWriteId) return;
     this.applyModDb(changes['mods'].newValue as ModDb | undefined);
   };
 
@@ -64,13 +63,17 @@ export class ModListComponent implements OnInit, OnDestroy {
   updateState() {
     const last = this.updateSyncContext;
     this.updateSyncContext = (async () => {
-      await last;
+      try {
+        await last;
+      } catch (e) {
+        console.error('Previous mod update failed', e);
+      }
       const update: ModDb = {};
       for (const mod of this.mods()) {
         update[mod.name] = mod;
       }
       try {
-        const writeId = ++this.nextWriteId;
+        const writeId = crypto.randomUUID();
         this.lastEmittedWriteId = writeId;
         await chrome.storage.local.set({ mods: update, modsWriteId: writeId });
         await chrome.runtime.sendMessage('update');
