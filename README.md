@@ -66,6 +66,45 @@ the `path` in `inject` setting can use nested path like `dist/main/abc.js`
 
 I have created a project template and basic file scaffolding script in [here](mod-template)
 
+## Options UI
+
+A MOD can declare interactive controls in `config.json` under `options` (optional). They render
+automatically in the extension popup — both in the **Current Page** tab, under the MOD that ran,
+and in the **Options** tab — so users can configure the MOD without touching its code.
+
+```json
+{
+    "match": "https://xxx.net/*",
+    "inject": [ { "path": "dist/index.js", "type": "script" } ],
+    "options": [
+        { "key": "enabled",  "type": "toggle",    "label": "Enable feature", "default": true },
+        { "key": "greeting", "type": "text",      "label": "Greeting",       "default": "hi" },
+        { "key": "theme",    "type": "dropdown",  "label": "Theme", "default": "light",
+          "choices": [ { "value": "light", "label": "Light" }, { "value": "dark", "label": "Dark" } ] },
+        { "key": "sections", "type": "checklist", "label": "Sections", "default": [],
+          "choices": [ { "value": "a", "label": "A" }, { "value": "b", "label": "B" } ] },
+        { "key": "links",    "type": "dropdown",  "label": "Pick a link", "dynamic": true },
+        { "key": "status",   "type": "label",     "label": "Status", "default": "idle" },
+        { "key": "refresh",  "type": "button",    "label": "Refresh" }
+    ]
+}
+```
+
+Control types: `toggle` (boolean), `text` / `dropdown` (string), `checklist` (string[]),
+`label` (read-only text), `button` (action). A `dropdown` / `checklist` can set `"dynamic": true`
+to have the MOD fill its choices at runtime (omit or keep `choices` as a fallback).
+
+- **Value options** (toggle / text / dropdown / checklist) are global — they apply to every matching tab.
+- **Button, label, and dynamic choices** are per-tab — they target the page the popup was opened on.
+
+### Reading options from MOD code
+
+Your MOD reads values, reacts to changes, handles button presses, and pushes dynamic choices /
+label text through the `@libs/pml` helpers (`getOptions`, `onOptionChange`, `onButton`,
+`setChoices`, `setLabel`). See the **[MOD template README](mod-template/README.md)** for the API and
+usage, and **[demo-mods](demo-mods)** for ready-to-load examples (including one that exercises every
+control type).
+
 ## for who want build extension locally
 
 1. clone repo
