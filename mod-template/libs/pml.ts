@@ -3,11 +3,19 @@
 // Bundled INTO each mod (via @libs/pml) and runs in the page's MAIN world. All state below
 // lives in this bundle's module closure — never on `window` — so the host page can neither
 // read nor tamper with it. __PML_EID__ / __PML_NAME__ are injected by the loader into the
-// surrounding IIFE scope (see service_worker buildScripts). 'pmlPoll'/'pmlChoices' are the
+// surrounding IIFE scope (see service_worker buildScripts). 'pml'/'pmlPoll'/'pmlChoices' are the
 // wire protocol agreed with the loader, hardcoded because the bundle has no access to @lib.
+//
+// If the mod opts in with config.json "encrypt": true, the loader also bakes __PML_KEY__ and the
+// __pmlCrypto impl into the closure; every message is then sealed inside a { type:'pml', name, enc }
+// envelope. Without it the same messages go in the clear. _enc picks the path once at load.
 
 declare const __PML_EID__: string
 declare const __PML_NAME__: string
+// Present only for encrypt:true mods. typeof guard avoids a ReferenceError in plaintext mods where
+// the loader never declares them.
+declare const __PML_KEY__: Uint8Array
+declare const __pmlCrypto: { pmlSeal(key: Uint8Array, obj: unknown): string, pmlOpen(key: Uint8Array, hex: string): unknown }
 
 export type PmlValue = boolean | string | string[] | number
 export type PmlValues = Record<string, PmlValue>
@@ -15,6 +23,16 @@ export type PmlChoice = { value: string, label: string }
 
 const _send: (id: string, msg: any) => Promise<any> =
     (globalThis as any).chrome.runtime.sendMessage.bind((globalThis as any).chrome.runtime)
+
+// Sealed channel iff the loader baked a key into this closure.
+const _enc = typeof __PML_KEY__ !== 'undefined'
+
+// Wrap an outgoing message: sealed envelope when encrypted, bare {type,...,name} when plaintext.
+function _msg(inner: { type: string, [k: string]: any }): any {
+    return _enc
+        ? { type: 'pml', name: __PML_NAME__, enc: __pmlCrypto.pmlSeal(__PML_KEY__, inner) }
+        : { ...inner, name: __PML_NAME__ }
+}
 
 let _values: PmlValues | null = null
 let _rev: number | null = null   // value revision (durable, from modOptionsRev)
@@ -30,8 +48,13 @@ const _buttons = new Map<string, { last: number, cbs: Array<() => void> }>()
 const _choices = new Map<string, PmlChoice[]>()
 const _labels = new Map<string, string>()
 
-function _poll(rev: number | null): Promise<{ rev: number, btn: number, values: PmlValues }> {
-    return _send(__PML_EID__, { type: 'pmlPoll', name: __PML_NAME__, rev, btn: _btn })
+async function _poll(rev: number | null): Promise<{ rev: number, btn: number, values: PmlValues }> {
+    const resp = await _send(__PML_EID__, _msg({ type: 'pmlPoll', rev, btn: _btn }))
+    // empty ⇒ the SW dropped the message (downgrade / tampered / key mismatch); surface it clearly
+    // instead of a cryptic TypeError on resp.enc — _loop catches and retries either way.
+    if (!resp) throw new Error('[pml] empty poll response (dropped by the extension)')
+    if (_enc && typeof resp.enc !== 'string') throw new Error('[pml] expected a sealed response, got plaintext/malformed')
+    return (_enc ? __pmlCrypto.pmlOpen(__PML_KEY__, resp.enc) : resp) as { rev: number, btn: number, values: PmlValues }
 }
 function _sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
@@ -73,20 +96,20 @@ export function onButton(key: string, cb: () => void): void {
 /** Provide dynamic dropdown/checklist choices for this tab's popup. */
 export function setChoices(key: string, choices: PmlChoice[]): void {
     _choices.set(key, choices)
-    void _send(__PML_EID__, { type: 'pmlChoices', name: __PML_NAME__, key, choices }).catch(() => { })
+    void _send(__PML_EID__, _msg({ type: 'pmlChoices', key, choices })).catch(() => { })
     _ensureLoop() // hold a poll so the SW stays warm and we can re-push if it restarts
 }
 
 /** Set the text of a read-only `label` control. Updates this tab's popup live if open. */
 export function setLabel(key: string, text: string): void {
     _labels.set(key, text)
-    void _send(__PML_EID__, { type: 'pmlLabel', name: __PML_NAME__, key, text }).catch(() => { })
+    void _send(__PML_EID__, _msg({ type: 'pmlLabel', key, text })).catch(() => { })
     _ensureLoop()
 }
 
 function _repushDynamic(): void {
-    for (const [key, choices] of _choices) void _send(__PML_EID__, { type: 'pmlChoices', name: __PML_NAME__, key, choices }).catch(() => { })
-    for (const [key, text] of _labels) void _send(__PML_EID__, { type: 'pmlLabel', name: __PML_NAME__, key, text }).catch(() => { })
+    for (const [key, choices] of _choices) void _send(__PML_EID__, _msg({ type: 'pmlChoices', key, choices })).catch(() => { })
+    for (const [key, text] of _labels) void _send(__PML_EID__, _msg({ type: 'pmlLabel', key, text })).catch(() => { })
 }
 
 function _ensureLoop(): void {

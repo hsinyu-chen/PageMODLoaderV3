@@ -24,6 +24,13 @@ export type ModDisplayState = { choices: ModDynamicChoices, labels: ModDynamicLa
 
 export const STORAGE_MOD_OPTIONS = 'modOptions'
 export const STORAGE_MOD_OPTIONS_REV = 'modOptionsRev'
+// Per-mod AES-256-GCM keys: { [modName]: hex(32 bytes) }. Baked into each mod's injected
+// closure so the whole mod↔SW UI channel is encrypted; never exposed to the page.
+export const STORAGE_MOD_KEYS = 'modKeys'
+// Envelope type for every encrypted mod↔SW message: { type: MSG_PML, name, enc }. The real
+// message ({ type: MSG_PML_POLL|CHOICES|LABEL, ... }) travels sealed inside `enc`; `name` stays
+// cleartext as the key selector for SW routing.
+export const MSG_PML = 'pml'
 export const MSG_PML_POLL = 'pmlPoll'
 export const MSG_PML_CHOICES = 'pmlChoices'
 export const MSG_PML_LABEL = 'pmlLabel'
@@ -51,7 +58,10 @@ export function resolveOptionValue(option: ModOption, stored: ModOptionValue | u
 export type ModelConfig = {
     match: string,
     inject: { path: string, type: InjectFileType }[],
-    options?: ModOption[]
+    options?: ModOption[],
+    // Opt in to encrypting this mod's entire option/UI channel (AES-256-GCM). Costs ~10.5kb of
+    // injected bootstrap; off by default so secret-free mods stay lean.
+    encrypt?: boolean
 }
 export type ModFile = {
     file: string
@@ -64,7 +74,8 @@ export type Mod = {
     name: string,
     match: string | string[],
     files: ModFile[],
-    options?: ModOption[]
+    options?: ModOption[],
+    encrypt?: boolean
 }
 
 export type ModDb = { [key: string]: Mod }

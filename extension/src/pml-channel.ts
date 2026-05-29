@@ -1,0 +1,115 @@
+// The encrypted-channel subsystem, kept out of service_worker.ts. Owns per-mod key lifecycle and
+// the seal/open envelope so the SW only deals in `newChannel(option)` + plaintext payloads.
+//
+// A mod opts in with config.json `"encrypt": true`. When on, its whole option/UI channel is sealed
+// with AES-256-GCM (per-mod key, baked into the mod's closure alongside the impl — never on window).
+// When off, the channel is plaintext exactly as before. The SW resolves the per-mod key and lets the
+// channel decide: a keyed mod is served ONLY the sealed envelope, an unkeyed mod ONLY plaintext —
+// so a page script can't downgrade an encrypted mod by sending a plaintext poll.
+
+import { ModDb, Mod, STORAGE_MOD_KEYS, MSG_PML, ownValue } from '@lib/types'
+import { pmlSeal, pmlOpen, randomKey32, bytesToHex, hexToBytes } from './pml-crypto'
+import { PML_CRYPTO_BOOTSTRAP } from './generated/pml-crypto-bootstrap'
+
+// name indexes our key store; reject prototype-polluting values defensively.
+function isSafeName(s: string): boolean {
+    return s !== '__proto__' && s !== 'constructor' && s !== 'prototype'
+}
+
+// 32-byte key as hex. Validating before hexToBytes keeps one corrupt storage entry from throwing
+// and aborting the whole registration (or a single keyFor lookup).
+const HEX_KEY = /^[0-9a-fA-F]{64}$/
+function decodeKey(hex: unknown): Uint8Array | undefined {
+    if (typeof hex !== 'string' || !HEX_KEY.test(hex)) return undefined
+    try { return hexToBytes(hex) } catch { return undefined }
+}
+
+// name → key bytes. Repopulated by ensureModKeys; keyFor falls back to storage on a cold miss.
+let keyCache: Record<string, Uint8Array> = Object.create(null)
+
+/** Ensure every enabled encrypt:true mod has a persisted 256-bit key, then refresh the cache.
+ *  Keys are generated once and reused across SW restarts so already-injected pages stay decryptable. */
+export async function ensureModKeys(mods: ModDb): Promise<void> {
+    const stored = ((await chrome.storage.local.get(STORAGE_MOD_KEYS))[STORAGE_MOD_KEYS] ?? {}) as Record<string, string>
+    let dirty = false
+    // Generate for any enabled encrypt mod lacking a valid key. ownValue: a mod named like an
+    // Object.prototype member (toString, …) must not read the inherited property as its "key".
+    for (const mod of Object.values(mods)) {
+        if (!mod.enabled || !mod.encrypt || !isSafeName(mod.name)) continue
+        if (!decodeKey(ownValue(stored, mod.name))) { stored[mod.name] = bytesToHex(randomKey32()); dirty = true }
+    }
+    // Prune keys for mods that are gone or no longer encrypt:true (a lingering key would make the SW
+    // treat the now-plaintext mod as encrypted and reject its polls). Never prune when mods is empty —
+    // a transient storage clear/sync would otherwise wipe every key and break live encrypted tabs.
+    if (Object.keys(mods).length) {
+        for (const name of Object.keys(stored)) {
+            if (!ownValue(mods, name)?.encrypt) { delete stored[name]; dirty = true }
+        }
+    }
+    if (dirty) await chrome.storage.local.set({ [STORAGE_MOD_KEYS]: stored })
+    invalidateKeyCache()
+    for (const [name, hex] of Object.entries(stored)) {
+        const bytes = isSafeName(name) ? decodeKey(hex) : undefined
+        if (bytes) keyCache[name] = bytes
+    }
+}
+
+/** Key for a mod, or undefined if it's not an encrypt mod. Cache-first with a storage fallback for
+ *  the window after an SW restart before ensureModKeys has run. */
+export async function keyFor(name: string): Promise<Uint8Array | undefined> {
+    if (!isSafeName(name)) return undefined
+    if (keyCache[name]) return keyCache[name]
+    const stored = ((await chrome.storage.local.get(STORAGE_MOD_KEYS))[STORAGE_MOD_KEYS] ?? {}) as Record<string, string>
+    const bytes = decodeKey(ownValue(stored, name))
+    if (!bytes) return undefined
+    return (keyCache[name] = bytes)
+}
+
+/** Drop the cache when modKeys changes underneath us (another context wrote it). */
+export function invalidateKeyCache(): void {
+    keyCache = Object.create(null)
+}
+
+/** Whether a usable key is loaded for a mod. registScripts uses this to fail closed: an encrypt
+ *  mod with no key is skipped rather than registered in a plaintext-capable state. */
+export function hasModKey(name: string): boolean {
+    return !!keyCache[name]
+}
+
+/** Closure-prefix text for an encrypt:true mod's IIFE: the crypto impl + its key, both living only
+ *  in the closure (page scripts can't read the key or swap the impl). Empty for a plaintext mod. */
+export function cryptoBootstrap(mod: Mod): string {
+    if (!mod.encrypt) return ''
+    const key = keyCache[mod.name] // ensureModKeys runs before buildScripts, so this is populated
+    if (!key) return ''
+    return `${PML_CRYPTO_BOOTSTRAP};const __PML_KEY__=new Uint8Array([${key.join(',')}]);`
+}
+
+export type PmlChannel = {
+    /** Inner payload of an incoming message, or null to drop it (wrong mode / tampered / garbage). */
+    open(request: any): any
+    /** Wrap an outgoing response payload for this channel (sealed when encrypted, raw otherwise). */
+    seal(payload: unknown): any
+}
+
+// Option payloads are tiny; cap the sealed blob well above any real value so a hostile page can't
+// force a huge hex decode / buffer alloc in the SW (DoS).
+const MAX_ENC_LEN = 1 << 20 // 1 MiB
+
+/** A per-message channel. `option.key` present ⇒ encrypted (envelope only); absent ⇒ plaintext. */
+export function pmlChannel(option: { key?: Uint8Array }): PmlChannel {
+    const key = option.key
+    if (key) {
+        return {
+            open(request) {
+                if (request?.type !== MSG_PML || typeof request.enc !== 'string' || request.enc.length > MAX_ENC_LEN) return null
+                try { return pmlOpen(key, request.enc) } catch { return null }
+            },
+            seal(payload) { return { enc: pmlSeal(key, payload) } },
+        }
+    }
+    return {
+        open(request) { return request?.type === MSG_PML ? null : request },
+        seal(payload) { return payload },
+    }
+}

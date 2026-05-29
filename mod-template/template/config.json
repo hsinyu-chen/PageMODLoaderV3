@@ -1,5 +1,6 @@
 {
     "match": "https://www.template.com/",
+    "encrypt": false,
     "inject": [
         {
             "path": "dist/index.js",

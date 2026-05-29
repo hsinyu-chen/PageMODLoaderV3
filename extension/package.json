@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "main": "index.js",
   "scripts": {
-    "build": "rollup -c rollup.config.js",
+    "build:crypto": "rollup -c rollup.crypto.config.js",
+    "build": "npm run build:crypto && rollup -c rollup.config.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
@@ -11,9 +12,14 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^1.0.0",
     "@types/chrome": "^0.0.270",
     "rollup-plugin-typescript-paths": "^1.5.0",
     "rollup-plugin-typescript2": "^0.36.0",
     "tslib": "^2.7.0"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^2.2.0"
   }
 }

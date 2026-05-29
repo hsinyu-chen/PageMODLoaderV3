@@ -76,7 +76,13 @@ export class ModSyncService {
         }
         const enabled = current[entry.name]?.enabled !== false;
         const options = parseOptions(obj.options);
-        const mod: Mod = { match: obj.match, name: entry.name, files: [], enabled, ...(options ? { options } : {}) };
+        if (obj.encrypt !== undefined && typeof obj.encrypt !== 'boolean') {
+          throw new Error('"encrypt" must be a boolean');
+        }
+        const mod: Mod = {
+          match: obj.match, name: entry.name, files: [], enabled,
+          ...(options ? { options } : {}), ...(obj.encrypt ? { encrypt: true } : {}),
+        };
 
         for (const injection of obj.inject) {
           try {
