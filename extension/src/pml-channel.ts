@@ -70,6 +70,12 @@ export function invalidateKeyCache(): void {
     for (const k in keyCache) delete keyCache[k]
 }
 
+/** Whether a usable key is loaded for a mod. registScripts uses this to fail closed: an encrypt
+ *  mod with no key is skipped rather than registered in a plaintext-capable state. */
+export function hasModKey(name: string): boolean {
+    return !!keyCache[name]
+}
+
 /** Closure-prefix text for an encrypt:true mod's IIFE: the crypto impl + its key, both living only
  *  in the closure (page scripts can't read the key or swap the impl). Empty for a plaintext mod. */
 export function cryptoBootstrap(mod: Mod): string {
@@ -86,13 +92,17 @@ export type PmlChannel = {
     seal(payload: unknown): any
 }
 
+// Option payloads are tiny; cap the sealed blob well above any real value so a hostile page can't
+// force a huge hex decode / buffer alloc in the SW (DoS).
+const MAX_ENC_LEN = 1 << 20 // 1 MiB
+
 /** A per-message channel. `option.key` present ⇒ encrypted (envelope only); absent ⇒ plaintext. */
 export function pmlChannel(option: { key?: Uint8Array }): PmlChannel {
     const key = option.key
     if (key) {
         return {
             open(request) {
-                if (request?.type !== MSG_PML || typeof request.enc !== 'string') return null
+                if (request?.type !== MSG_PML || typeof request.enc !== 'string' || request.enc.length > MAX_ENC_LEN) return null
                 try { return pmlOpen(key, request.enc) } catch { return null }
             },
             seal(payload) { return { enc: pmlSeal(key, payload) } },

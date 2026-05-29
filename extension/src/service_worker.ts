@@ -5,7 +5,7 @@ import {
     MSG_PML, MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON,
     resolveOptionValue, ownValue
 } from "@lib/types";
-import { ensureModKeys, keyFor, invalidateKeyCache, cryptoBootstrap, pmlChannel, PmlChannel } from "./pml-channel";
+import { ensureModKeys, keyFor, invalidateKeyCache, cryptoBootstrap, pmlChannel, hasModKey, PmlChannel } from "./pml-channel";
 
 function isUserScriptsAvailable() {
     try {
@@ -84,15 +84,20 @@ function registScripts(): Promise<void> {
             await ensureModKeys(mods) // keys must exist before buildScripts bakes them into the closure
             const scripts: chrome.userScripts.RegisteredUserScript[] = [];
             for (const [, mod] of Object.entries(mods)) {
-                if (mod.enabled) {
-                    scripts.push({
-                        id: mod.name,
-                        matches: typeof mod.match === 'string' ? [mod.match] : mod.match,
-                        js: buildScripts(mod),
-                        world: 'MAIN',
-                        runAt: 'document_end'
-                    });
+                if (!mod.enabled) continue
+                // Fail closed: an encrypt mod whose key didn't materialize is skipped, never registered
+                // in a plaintext-capable state. (ensureModKeys should have made the key; this is a guard.)
+                if (mod.encrypt && !hasModKey(mod.name)) {
+                    console.error(`PML: skipping encrypt mod "${mod.name}" — no key available`)
+                    continue
                 }
+                scripts.push({
+                    id: mod.name,
+                    matches: typeof mod.match === 'string' ? [mod.match] : mod.match,
+                    js: buildScripts(mod),
+                    world: 'MAIN',
+                    runAt: 'document_end'
+                });
             }
             await chrome.userScripts.unregister();
             if (scripts.length) {
@@ -277,7 +282,14 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         // plaintext — a mismatched message opens to null and is dropped (no plaintext downgrade).
         void (async () => {
             try {
-                const channel = pmlChannel({ key: await keyFor(name) })
+                const key = await keyFor(name)
+                // Fail closed: if the mod is configured encrypt but no key loaded (cold start / storage
+                // glitch), refuse rather than fall back to a plaintext channel a page could poll in the clear.
+                if (!key) {
+                    const { mods } = await readOptionState()
+                    if (ownValue(mods, name)?.encrypt) { response(); return }
+                }
+                const channel = pmlChannel({ key })
                 const inner = channel.open(request)
                 if (inner) dispatchPml(inner, name, tabId, channel, response)
                 else response() // dropped (downgrade / tampered / garbage) — close the held port, don't leak it
