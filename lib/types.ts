@@ -31,11 +31,15 @@ export const MSG_PML_GET_DISPLAY = 'pmlGetDisplay'
 export const MSG_PML_LABEL_UPDATE = 'pmlLabelUpdate'
 export const MSG_PML_BUTTON = 'pmlButton'
 
+// Shared so an unconfigured checklist returns a stable reference — a fresh [] each call would
+// look like a changed value to Angular's [ngModel] every digest. Never mutated by callers.
+const EMPTY_CHECKLIST: readonly string[] = []
+
 export function resolveOptionValue(option: ModOption, stored: ModOptionValue | undefined): ModOptionValue {
     if (option.type === 'button') return typeof stored === 'number' ? stored : 0
     if (stored !== undefined) return stored
     if (option.default !== undefined) return option.default
-    return option.type === 'toggle' ? false : option.type === 'checklist' ? [] : ''
+    return option.type === 'toggle' ? false : option.type === 'checklist' ? (EMPTY_CHECKLIST as string[]) : ''
 }
 
 export type ModelConfig = {

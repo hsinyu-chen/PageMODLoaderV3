@@ -203,14 +203,18 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         const tabId = sender.tab?.id
         const clientRev: number | null = request.rev
         const clientBtn: number = request.btn ?? 0
+        // Subscribe first, then read state: a flush during the async read must not be lost (it
+        // would otherwise respond to a not-yet-pushed poller and leave it stuck).
+        const poller: Poller = { name: request.name, tabId, respond: response }
+        pendingPollers.push(poller)
         void (async () => {
             const { mods, modOptions, rev } = await readOptionState()
-            const poller: Poller = { name: request.name, tabId, respond: response }
+            const idx = pendingPollers.indexOf(poller)
+            if (idx === -1) return // a flush already responded while we were reading
             // btn compared with !== (not >) so an SW-restart counter reset still wakes the poll
             if (clientRev === null || rev > clientRev || tabButtonTotal(request.name, tabId) !== clientBtn) {
-                response(snapshotFor(mods, modOptions, rev, poller))
-            } else {
-                pendingPollers.push(poller)
+                pendingPollers.splice(idx, 1)
+                try { response(snapshotFor(mods, modOptions, rev, poller)) } catch { /* port closed */ }
             }
         })()
         return true // async response: keep the message channel open until a value changes
