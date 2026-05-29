@@ -219,6 +219,13 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         if (!tabScriptTracker[sender.tab.id] || request.type === 'clean') {
             tabScriptTracker[sender.tab.id] = {}
         }
+        // 'clean' fires as a page (re)loads — drop the old page's per-tab option state so dynamic
+        // choices, button counts, and dead pollers don't bleed across navigations in the same tab.
+        if (request.type === 'clean') {
+            delete tabDynamicChoices[sender.tab.id]
+            delete tabButtonCounters[sender.tab.id]
+            flushPollers(p => p.tabId === sender.tab!.id)
+        }
 
         if (request.type === 'userScriptExcute') {
             if (!tabScriptTracker[sender.tab.id][request.name]) {

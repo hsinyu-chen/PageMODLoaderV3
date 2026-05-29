@@ -45,7 +45,8 @@ export function onOptionChange(cb: (values: PmlValues) => void): void {
     _ensureLoop()
 }
 
-/** Subscribe to a declared button. Presses before subscription are not replayed. */
+/** Subscribe to a declared button. The current press count is taken as the baseline; only
+ *  later increments fire the callback. */
 export function onButton(key: string, cb: () => void): void {
     const last = typeof _values?.[key] === 'number' ? _values[key] as number : NaN
     _buttons.set(key, { last, cb })
@@ -100,7 +101,8 @@ function _dispatch(values: PmlValues): void {
 }
 
 function _optSnap(values: PmlValues): string {
-    // exclude button keys so a press never looks like a value change
-    const keys = Object.keys(values).filter(key => !_buttons.has(key)).sort()
+    // exclude buttons (the only numeric values) so a press never looks like a value change —
+    // covers buttons declared but never passed to onButton(), which _buttons wouldn't track
+    const keys = Object.keys(values).filter(key => typeof values[key] !== 'number').sort()
     return JSON.stringify(keys.map(key => [key, values[key]]))
 }
