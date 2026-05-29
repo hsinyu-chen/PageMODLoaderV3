@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022", /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
-    "module": "ES2022", /* Specify what module code is generated. */
+    "module": "ESNext", /* Specify what module code is generated. */
+    "moduleResolution": "bundler", /* rollup bundles this; bundler resolution reads @noble's package exports map. */
     "types": [
       "@types/chrome"
     ], /* Specify type package names to be included without being referenced in a source file. */

@@ -4,7 +4,7 @@ param (
 )
 if ($Name) {
     foreach ($file in (Get-ChildItem '.\template\*')) {
-        if ($file.Name -ne 'node_modules' -and $file.Name -ne 'package.json' -and $file.Name -ne 'package-lock.json') {
+        if ($file.Name -ne 'node_modules' -and $file.Name -ne 'package.json' -and $file.Name -ne 'package-lock.json' -and $file.Name -ne 'build-demos.mjs') {
             if ($file -is [System.IO.DirectoryInfo]) {
                 Robocopy.exe $file "MODs\$($Name)\$($file.Name)\" /e
             }

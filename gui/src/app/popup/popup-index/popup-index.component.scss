@@ -1,6 +1,29 @@
 :host {
-    display: block;
+    display: flex;
+    flex-direction: column;
     width: 800px;
+    // Chrome caps the popup around 600px tall; constrain here so the tab header stays pinned and
+    // only the tab body scrolls (a plain block lets the whole popup — header included — scroll away).
+    max-height: 600px;
+    overflow: hidden;
+}
+
+mat-tab-group {
+    flex: 1 1 auto;
+    min-height: 0; // let the body wrapper shrink below its content so it can scroll
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+// The tab header is a sibling above this wrapper; making only the wrapper scroll keeps the header
+// fixed. overflow-x:hidden + min-width:0 kill the spurious horizontal scrollbar from flex children.
+:host ::ng-deep .mat-mdc-tab-body-wrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 button {
@@ -23,4 +46,31 @@ span.match {
 
 table {
     width: 100%;
+}
+
+.cp-empty {
+    padding: 12px;
+    opacity: 0.7;
+}
+
+.cp-mod {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.cp-mod-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .cp-mod-name {
+        font-weight: 600;
+        min-width: 0; // shrink instead of forcing the row wider than the popup
+        overflow-wrap: anywhere;
+    }
+
+    .cp-files {
+        display: inline-flex;
+        align-items: center;
+    }
 }

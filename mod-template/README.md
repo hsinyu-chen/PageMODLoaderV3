@@ -25,3 +25,47 @@ element.textContent = 'hello'
 ```
 
 after MOD developed , select folder `MODs` in extension option page to upload MODs
+
+## Options UI
+
+A MOD can declare interactive controls in `config.json` under `options`. They render
+automatically in the extension popup, and the MOD reads them at runtime via `@libs/pml`.
+
+Declare them (see `config.json` for a full example):
+
+```jsonc
+"options": [
+  { "key": "enabled", "type": "toggle",   "label": "Enable feature", "default": true },
+  { "key": "greeting","type": "text",     "label": "Greeting",       "default": "hi" },
+  { "key": "theme",   "type": "dropdown", "label": "Theme", "default": "light",
+    "choices": [{ "value": "light", "label": "Light" }, { "value": "dark", "label": "Dark" }] },
+  { "key": "sections","type": "checklist","label": "Sections", "default": [], "dynamic": true },
+  { "key": "status",  "type": "label",    "label": "Status",   "default": "idle" },
+  { "key": "refresh", "type": "button",   "label": "Refresh now" }
+]
+```
+
+Use them from your code:
+
+```ts
+import { getOptions, onOptionChange, onButton, setChoices, setLabel } from '@libs/pml';
+
+const opts = await getOptions();          // read current values once
+onOptionChange(v => { /* apply settings */ }); // fires now AND on every change; { immediate:false } to skip the first
+onButton('refresh', () => location.reload());
+setChoices('sections', [{ value: 'a', label: 'Section A' }]); // fill a dynamic dropdown/checklist
+setLabel('status', 'ready');              // update a read-only label (live in an open popup)
+```
+
+Notes:
+- `toggle`→boolean, `text`/`dropdown`→string, `checklist`→string[].
+- `label` is **read-only display**: shows the static `default`, or whatever the mod last passed to `setLabel` (updates live while the popup is open).
+- **Value options are global** (apply to every matching tab); **buttons, dynamic choices and labels are per-tab** (only the active tab).
+- `dropdown`/`checklist` can set `"dynamic": true` and omit `choices` (or keep them as a fallback); the live list comes from `setChoices`.
+- Set top-level `"encrypt": true` in `config.json` to seal this mod's whole option channel (AES-256-GCM, per-mod key baked into the closure) — use it when an option holds a secret. The `@libs/pml` API is unchanged; see [Encrypting the channel](../README.md#encrypting-the-channel-optional).
+
+### Without `@libs/pml`
+
+`pml.ts` has no dependencies — if you don't want the `@libs` path, just copy `libs/pml.ts` into
+your project. To use options with no helper at all (any toolchain, plain JS), the underlying
+message protocol is documented in the [main README](../README.md#without-libspml).

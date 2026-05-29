@@ -6,6 +6,11 @@
                     (click)="$event.stopPropagation()">{{mod.name}}</mat-slide-toggle></mat-panel-title>
             <mat-panel-description>{{getDisplayMatch(mod.match)}}</mat-panel-description>
         </mat-expansion-panel-header>
+
+        @if(optionsSvc.visibleOptions(mod, surface()).length){
+        <app-mod-options [mod]="mod" [surface]="surface()"></app-mod-options>
+        }
+
         <table mat-table [dataSource]="mod.files" class="mat-elevation-z8">
 
             <ng-container matColumnDef="file">

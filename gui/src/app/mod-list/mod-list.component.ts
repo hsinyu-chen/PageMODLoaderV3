@@ -1,10 +1,15 @@
-import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnDestroy, OnInit, signal } from '@angular/core';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTableModule } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
 import { Mod, ModDb } from '@lib/types';
+import { ModOptionsService } from '../mod-options.service';
+import { ModOptionsComponent } from '../mod-options/mod-options.component';
+
+// Echoed through storage so this view ignores the mod-enable write it just made.
+const MODS_WRITE_ID = 'modsWriteId';
 
 @Component({
   selector: 'app-mod-list',
@@ -14,12 +19,17 @@ import { Mod, ModDb } from '@lib/types';
     MatTableModule,
     MatSlideToggleModule,
     FormsModule,
+    ModOptionsComponent,
   ],
   templateUrl: './mod-list.component.html',
   styleUrl: './mod-list.component.scss',
 })
 export class ModListComponent implements OnInit, OnDestroy {
+  // 'popup' has a real active page; 'options' (full page) has no target tab, so per-tab
+  // controls (button/label/dynamic) are hidden there.
+  readonly surface = input<'popup' | 'options'>('popup');
   readonly mods = signal<Mod[]>([]);
+  readonly optionsSvc = inject(ModOptionsService);
   private snackBar = inject(MatSnackBar);
   private updateSyncContext = Promise.resolve();
   private pendingWriteIds = new Set<string>();
@@ -38,7 +48,7 @@ export class ModListComponent implements OnInit, OnDestroy {
     areaName: chrome.storage.AreaName
   ) => {
     if (areaName !== 'local' || !changes['mods']) return;
-    const incomingWriteId = changes['modsWriteId']?.newValue;
+    const incomingWriteId = changes[MODS_WRITE_ID]?.newValue;
     if (typeof incomingWriteId === 'string' && this.pendingWriteIds.delete(incomingWriteId)) return;
     this.applyModDb(changes['mods'].newValue as ModDb | undefined);
   };
@@ -49,11 +59,7 @@ export class ModListComponent implements OnInit, OnDestroy {
   }
 
   private applyModDb(db: ModDb | undefined) {
-    if (db) {
-      this.mods.set(Object.values(db));
-    } else {
-      this.mods.set([]);
-    }
+    this.mods.set(db ? Object.values(db) : []);
   }
 
   getDisplayMatch(match: string | string[]) {
@@ -75,7 +81,7 @@ export class ModListComponent implements OnInit, OnDestroy {
       const writeId = crypto.randomUUID();
       this.pendingWriteIds.add(writeId);
       try {
-        await chrome.storage.local.set({ mods: update, modsWriteId: writeId });
+        await chrome.storage.local.set({ mods: update, [MODS_WRITE_ID]: writeId });
         await chrome.runtime.sendMessage('update');
       } catch (e) {
         this.pendingWriteIds.delete(writeId);

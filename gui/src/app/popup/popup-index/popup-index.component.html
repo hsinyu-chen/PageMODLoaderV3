@@ -1,42 +1,29 @@
 <mat-tab-group>
     <mat-tab label="Current Page">
-        <table mat-table [dataSource]="current()" class="mat-elevation-z8">
-
-            <ng-container matColumnDef="name">
-                <th mat-header-cell *matHeaderCellDef> Mod </th>
-                <td mat-cell *matCellDef="let element"> {{element.name}} </td>
-            </ng-container>
-
-            <ng-container matColumnDef="results">
-                <th mat-header-cell *matHeaderCellDef> Results </th>
-                <td mat-cell *matCellDef="let element">
-                    <table mat-table [dataSource]="element.results" class="mat-elevation-z8">
-
-                        <ng-container matColumnDef="file">
-                            <th mat-header-cell *matHeaderCellDef> File </th>
-                            <td mat-cell *matCellDef="let element"> {{element.file}} </td>
-                        </ng-container>
-
-                        <ng-container matColumnDef="success">
-                            <th mat-header-cell *matHeaderCellDef> Status </th>
-                            <td mat-cell *matCellDef="let selement">
-                                @if(selement.success){
-                                <mat-icon class="primary-icon">check</mat-icon>
-                                }
-                                @if(!selement.success){
-                                <mat-icon class="warn-icon" [matTooltip]="selement.error">warning</mat-icon>
-                                }
-                            </td>
-                        </ng-container>
-                        <tr mat-header-row *matHeaderRowDef="['file','success']"></tr>
-                        <tr mat-row *matRowDef="let row; columns: ['file','success'];"></tr>
-                    </table>
-                </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="['name','results']"></tr>
-            <tr mat-row *matRowDef="let row; columns: ['name','results'];"></tr>
-        </table>
+        @if(current().length === 0){
+        <p class="cp-empty">No MODs ran on this page.</p>
+        }
+        @for(element of current(); track element.name){
+        <div class="cp-mod">
+            <div class="cp-mod-head">
+                <span class="cp-mod-name">{{element.name}}</span>
+                <span class="cp-files">
+                    @for(r of element.results; track r.file){
+                    @if(r.success){
+                    <mat-icon class="primary-icon" [matTooltip]="r.file">check</mat-icon>
+                    } @else {
+                    <mat-icon class="warn-icon" [matTooltip]="r.error">warning</mat-icon>
+                    }
+                    }
+                </span>
+            </div>
+            @if(modFor(element.name); as mod){
+            @if(mod.options?.length){
+            <app-mod-options [mod]="mod" surface="popup"></app-mod-options>
+            }
+            }
+        </div>
+        }
     </mat-tab>
     <mat-tab label="Options">
         <div class="row">
@@ -47,6 +34,6 @@
             and pick the folder there instead.
         </p>
         <app-folder-controls></app-folder-controls>
-        <app-mod-list></app-mod-list>
+        <app-mod-list surface="popup"></app-mod-list>
     </mat-tab>
 </mat-tab-group>
