@@ -27,7 +27,7 @@ export class PopupIndexComponent implements OnInit {
   current = signal<ModExcutingResult[]>([]);
 
   openOptions(): void {
-    chrome.tabs.create({ url: chrome.runtime.getURL('gui/index.html') + '#/option' });
+    chrome.tabs.create({ url: chrome.runtime.getURL('gui/index.html#/option') });
   }
 
   ngOnInit(): void {
