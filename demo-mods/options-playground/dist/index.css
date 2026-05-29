@@ -1,0 +1,46 @@
+.pml-pg {
+  position: fixed;
+  z-index: 999999;
+  min-width: 200px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(32, 33, 36, 0.92);
+  color: #fff;
+  font: 13px/1.5 Roboto, system-ui, sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  border-top: 3px solid var(--pml-accent, #1a73e8);
+}
+.pml-pg[data-color=blue] {
+  --pml-accent: #1a73e8;
+}
+.pml-pg[data-color=green] {
+  --pml-accent: #1e8e3e;
+}
+.pml-pg[data-color=red] {
+  --pml-accent: #d93025;
+}
+.pml-pg[data-corner=tl] {
+  top: 16px;
+  left: 16px;
+}
+.pml-pg[data-corner=tr] {
+  top: 16px;
+  right: 16px;
+}
+.pml-pg[data-corner=bl] {
+  bottom: 16px;
+  left: 16px;
+}
+.pml-pg[data-corner=br] {
+  bottom: 16px;
+  right: 16px;
+}
+
+.pml-pg-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.pml-pg-body {
+  opacity: 0.85;
+}

@@ -1,0 +1,39 @@
+{
+    "match": "https://www.google.com/",
+    "inject": [
+        { "path": "dist/index.js", "type": "script" },
+        { "path": "dist/index.css", "type": "style" }
+    ],
+    "options": [
+        { "key": "enabled", "type": "toggle", "label": "Show panel", "default": true },
+        { "key": "title", "type": "text", "label": "Panel title", "default": "PML Playground" },
+        {
+            "key": "color", "type": "dropdown", "label": "Accent color", "default": "blue",
+            "choices": [
+                { "value": "blue", "label": "Blue" },
+                { "value": "green", "label": "Green" },
+                { "value": "red", "label": "Red" }
+            ]
+        },
+        {
+            "key": "corner", "type": "dropdown", "label": "Corner", "default": "tl",
+            "choices": [
+                { "value": "tl", "label": "Top-left" },
+                { "value": "tr", "label": "Top-right" },
+                { "value": "bl", "label": "Bottom-left" },
+                { "value": "br", "label": "Bottom-right" }
+            ]
+        },
+        {
+            "key": "sections", "type": "checklist", "label": "Sections", "default": ["greeting"],
+            "choices": [
+                { "value": "greeting", "label": "Greeting" },
+                { "value": "clock", "label": "Clock" },
+                { "value": "links", "label": "Link count" }
+            ]
+        },
+        { "key": "pageLink", "type": "dropdown", "label": "Jump to link (dynamic)", "dynamic": true },
+        { "key": "status", "type": "label", "label": "Status", "default": "starting…" },
+        { "key": "ping", "type": "button", "label": "Ping" }
+    ]
+}
