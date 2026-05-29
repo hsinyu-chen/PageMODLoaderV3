@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Page MOD Loader v3",
   "description": "javascript & css MOD loader from your local file, use any toolchain for MOD develop!",
-  "version": "0.0.4",
+  "version": "1.0.0",
   "icons": {
     "32": "assets/logo16.png",
     "48": "assets/logo48.png",
