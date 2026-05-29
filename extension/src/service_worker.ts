@@ -274,10 +274,17 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         // keyFor decides the mode: a keyed mod accepts only the sealed envelope, an unkeyed one only
         // plaintext — a mismatched message opens to null and is dropped (no plaintext downgrade).
         void (async () => {
-            const channel = pmlChannel({ key: await keyFor(name) })
-            const inner = channel.open(request)
-            if (inner) dispatchPml(inner, name, tabId, channel, response)
-            else response() // dropped (downgrade / tampered / garbage) — close the held port, don't leak it
+            try {
+                const channel = pmlChannel({ key: await keyFor(name) })
+                const inner = channel.open(request)
+                if (inner) dispatchPml(inner, name, tabId, channel, response)
+                else response() // dropped (downgrade / tampered / garbage) — close the held port, don't leak it
+            } catch (e) {
+                // a throw here (e.g. hexToBytes on a corrupt stored key) would otherwise reject
+                // silently and leave the held port open until Chrome reaps it
+                console.error('PML message handling failed:', e)
+                try { response() } catch { /* port already closed */ }
+            }
         })()
         return true // async: key lookup + (for poll) held until a value changes
     }

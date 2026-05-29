@@ -7,7 +7,7 @@
 // channel decide: a keyed mod is served ONLY the sealed envelope, an unkeyed mod ONLY plaintext —
 // so a page script can't downgrade an encrypted mod by sending a plaintext poll.
 
-import { ModDb, Mod, STORAGE_MOD_KEYS, MSG_PML } from '@lib/types'
+import { ModDb, Mod, STORAGE_MOD_KEYS, MSG_PML, ownValue } from '@lib/types'
 import { pmlSeal, pmlOpen, randomKey32, bytesToHex, hexToBytes } from './pml-crypto'
 import { PML_CRYPTO_BOOTSTRAP } from './generated/pml-crypto-bootstrap'
 
@@ -24,19 +24,22 @@ const keyCache: Record<string, Uint8Array> = Object.create(null)
 export async function ensureModKeys(mods: ModDb): Promise<void> {
     const stored = ((await chrome.storage.local.get(STORAGE_MOD_KEYS))[STORAGE_MOD_KEYS] ?? {}) as Record<string, string>
     let dirty = false
-    // Generate for any enabled encrypt mod that lacks a key.
+    // Generate for any enabled encrypt mod that lacks a key. ownValue: a mod named like an
+    // Object.prototype member (toString, …) must not read the inherited property as its "key".
     for (const mod of Object.values(mods)) {
         if (!mod.enabled || !mod.encrypt || !isSafeName(mod.name)) continue
-        if (typeof stored[mod.name] !== 'string') { stored[mod.name] = bytesToHex(randomKey32()); dirty = true }
+        if (typeof ownValue(stored, mod.name) !== 'string') { stored[mod.name] = bytesToHex(randomKey32()); dirty = true }
     }
     // Prune keys for mods that are gone or no longer encrypt:true. A lingering key would make the SW
     // treat the now-plaintext mod as encrypted and reject its polls (a self-inflicted downgrade block).
     for (const name of Object.keys(stored)) {
-        if (!mods[name]?.encrypt) { delete stored[name]; dirty = true }
+        if (!ownValue(mods, name)?.encrypt) { delete stored[name]; dirty = true }
     }
     if (dirty) await chrome.storage.local.set({ [STORAGE_MOD_KEYS]: stored })
     invalidateKeyCache()
-    for (const name in stored) if (isSafeName(name)) keyCache[name] = hexToBytes(stored[name])
+    for (const [name, hex] of Object.entries(stored)) {
+        if (isSafeName(name) && typeof hex === 'string') keyCache[name] = hexToBytes(hex)
+    }
 }
 
 /** Key for a mod, or undefined if it's not an encrypt mod. Cache-first with a storage fallback for
