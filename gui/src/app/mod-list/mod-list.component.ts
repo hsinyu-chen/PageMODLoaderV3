@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnDestroy, OnInit, signal } from '@angular/core';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTableModule } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -13,6 +13,11 @@ import {
   Mod, ModDb, ModOption, ModOptionChoice, ModOptionValue, ModOptionsDb, ModDynamicChoices, ModDynamicLabels, ModDisplayState,
   STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON, resolveOptionValue,
 } from '@lib/types';
+
+// Per-write tokens echoed through storage so a view can ignore the change it just made
+// (avoids self-feedback / clobbering a focused input).
+const MODS_WRITE_ID = 'modsWriteId';
+const MOD_OPTIONS_WRITE_ID = 'modOptionsWriteId';
 
 @Component({
   selector: 'app-mod-list',
@@ -32,6 +37,9 @@ import {
   styleUrl: './mod-list.component.scss',
 })
 export class ModListComponent implements OnInit, OnDestroy {
+  // 'popup' has a real active page; 'options' (full page) has no target tab, so per-tab
+  // controls (button/label/dynamic) are hidden there.
+  readonly surface = input<'popup' | 'options'>('popup');
   readonly mods = signal<Mod[]>([]);
   readonly modOptions = signal<ModOptionsDb>({});
   readonly dynamicChoices = signal<ModDynamicChoices>({});
@@ -41,6 +49,7 @@ export class ModListComponent implements OnInit, OnDestroy {
   private updateSyncContext = Promise.resolve();
   private optionsSyncContext = Promise.resolve();
   private pendingWriteIds = new Set<string>();
+  private pendingOptionWriteIds = new Set<string>();
 
   ngOnInit(): void {
     this.loadMods();
@@ -66,11 +75,23 @@ export class ModListComponent implements OnInit, OnDestroy {
     changes: { [key: string]: chrome.storage.StorageChange },
     areaName: chrome.storage.AreaName
   ) => {
-    if (areaName !== 'local' || !changes['mods']) return;
-    const incomingWriteId = changes['modsWriteId']?.newValue;
-    if (typeof incomingWriteId === 'string' && this.pendingWriteIds.delete(incomingWriteId)) return;
-    this.applyModDb(changes['mods'].newValue as ModDb | undefined);
+    if (areaName !== 'local') return;
+    if (changes['mods'] && !this.isOwnWrite(changes, MODS_WRITE_ID, this.pendingWriteIds)) {
+      this.applyModDb(changes['mods'].newValue as ModDb | undefined);
+    }
+    if (changes[STORAGE_MOD_OPTIONS] && !this.isOwnWrite(changes, MOD_OPTIONS_WRITE_ID, this.pendingOptionWriteIds)) {
+      this.modOptions.set((changes[STORAGE_MOD_OPTIONS].newValue ?? {}) as ModOptionsDb);
+    }
   };
+
+  private isOwnWrite(
+    changes: { [key: string]: chrome.storage.StorageChange },
+    writeIdKey: string,
+    pending: Set<string>
+  ): boolean {
+    const incoming = changes[writeIdKey]?.newValue;
+    return typeof incoming === 'string' && pending.delete(incoming);
+  }
 
   async loadMods() {
     const values = await chrome.storage.local.get('mods');
@@ -97,6 +118,14 @@ export class ModListComponent implements OnInit, OnDestroy {
 
   getDisplayMatch(match: string | string[]) {
     return typeof match === 'string' ? match : match.join(',');
+  }
+
+  // Per-tab controls (button/label/dynamic) only make sense in the popup, where there is an
+  // active target page. The options page hides them and shows only global value options.
+  visibleOptions(mod: Mod): ModOption[] {
+    const options = mod.options ?? [];
+    if (this.surface() === 'popup') return options;
+    return options.filter(o => o.type !== 'button' && o.type !== 'label' && !o.dynamic);
   }
 
   // Choices: dynamic (this tab's, from a running mod) take precedence, else the static schema.
@@ -141,9 +170,16 @@ export class ModListComponent implements OnInit, OnDestroy {
       try { await last; } catch { /* previous write reported its own error */ }
       const v = await chrome.storage.local.get(STORAGE_MOD_OPTIONS_REV);
       const rev = ((v[STORAGE_MOD_OPTIONS_REV] ?? 0) as number) + 1;
+      const writeId = crypto.randomUUID();
+      this.pendingOptionWriteIds.add(writeId);
       try {
-        await chrome.storage.local.set({ [STORAGE_MOD_OPTIONS]: this.modOptions(), [STORAGE_MOD_OPTIONS_REV]: rev });
+        await chrome.storage.local.set({
+          [STORAGE_MOD_OPTIONS]: this.modOptions(),
+          [STORAGE_MOD_OPTIONS_REV]: rev,
+          [MOD_OPTIONS_WRITE_ID]: writeId,
+        });
       } catch (e) {
+        this.pendingOptionWriteIds.delete(writeId);
         this.snackBar.open(`Failed to save options: ${e}`, 'OK', { duration: 4000 });
       }
     })();
@@ -164,7 +200,7 @@ export class ModListComponent implements OnInit, OnDestroy {
       const writeId = crypto.randomUUID();
       this.pendingWriteIds.add(writeId);
       try {
-        await chrome.storage.local.set({ mods: update, modsWriteId: writeId });
+        await chrome.storage.local.set({ mods: update, [MODS_WRITE_ID]: writeId });
         await chrome.runtime.sendMessage('update');
       } catch (e) {
         this.pendingWriteIds.delete(writeId);

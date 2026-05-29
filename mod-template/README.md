@@ -51,7 +51,7 @@ Use them from your code:
 import { getOptions, onOptionChange, onButton, setChoices, setLabel } from '@libs/pml';
 
 const opts = await getOptions();          // read current values once
-onOptionChange(v => { /* live updates */ });
+onOptionChange(v => { /* apply settings */ }); // fires now AND on every change; { immediate:false } to skip the first
 onButton('refresh', () => location.reload());
 setChoices('sections', [{ value: 'a', label: 'Section A' }]); // fill a dynamic dropdown/checklist
 setLabel('status', 'ready');              // update a read-only label (live in an open popup)

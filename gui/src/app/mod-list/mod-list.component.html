@@ -7,9 +7,9 @@
             <mat-panel-description>{{getDisplayMatch(mod.match)}}</mat-panel-description>
         </mat-expansion-panel-header>
 
-        @if(mod.options?.length){
+        @if(visibleOptions(mod).length){
         <div class="options">
-            @for(opt of mod.options ?? []; track opt.key){
+            @for(opt of visibleOptions(mod); track opt.key){
             <div class="option-row">
                 @switch(opt.type){
                 @case('toggle'){

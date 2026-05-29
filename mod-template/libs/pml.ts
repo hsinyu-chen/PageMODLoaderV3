@@ -20,8 +20,10 @@ let _values: PmlValues | null = null
 let _rev: number | null = null   // value revision (durable, from modOptionsRev)
 let _btn = 0                     // this tab's total button presses (volatile, resets on SW restart)
 let _looping = false
+let _seeded = false              // loop has fetched its first snapshot; _values/baselines are valid
 let _optSnapshot: string | null = null
 const _subs: Array<(values: PmlValues) => void> = []
+const _immediate: Array<(values: PmlValues) => void> = [] // awaiting their first (immediate) emit
 const _buttons = new Map<string, { last: number, cb: () => void }>()
 
 function _poll(rev: number | null): Promise<{ rev: number, btn: number, values: PmlValues }> {
@@ -39,9 +41,15 @@ export async function getOptions(): Promise<PmlValues> {
     return _values
 }
 
-/** Subscribe to value-option changes. Fires on change, not on the initial value. */
-export function onOptionChange(cb: (values: PmlValues) => void): void {
+/** Subscribe to value-option changes. By default the callback also fires once with the
+ *  current values (so the same handler applies settings on load and on change); pass
+ *  { immediate: false } to fire only on subsequent changes. */
+export function onOptionChange(cb: (values: PmlValues) => void, opts?: { immediate?: boolean }): void {
     _subs.push(cb)
+    if (opts?.immediate !== false) {
+        if (_seeded && _values) cb(_values)   // late subscription: emit current values now
+        else _immediate.push(cb)              // early: emit once the loop seeds fresh values
+    }
     _ensureLoop()
 }
 
@@ -70,14 +78,16 @@ function _ensureLoop(): void {
 }
 
 async function _loop(): Promise<void> {
-    let seeded = false
     while (_subs.length || _buttons.size) {
         try {
-            // First poll forces rev=null for an immediate snapshot to seed baselines.
-            const r = await _poll(seeded ? _rev : null)
-            seeded = true
+            // Until seeded, force rev=null for an immediate snapshot to seed baselines.
+            const r = await _poll(_seeded ? _rev : null)
             _rev = r.rev; _btn = r.btn; _values = r.values
-            _dispatch(r.values)
+            _dispatch(r.values) // on the seed pass this only sets baselines (fires nothing)
+            if (!_seeded) {
+                _seeded = true
+                for (const cb of _immediate.splice(0)) cb(r.values)
+            }
         } catch {
             await _sleep(1000) // SW recycled / port closed — back off, re-poll (also wakes the SW)
         }

@@ -3,13 +3,16 @@ import { _html } from '@libs/helpers';
 import { getOptions, onOptionChange, onButton, setChoices, setLabel } from '@libs/pml';
 
 (async () => {
-    // Read the user's option values (declared in config.json) once at startup.
+    // Read a one-off snapshot of the option values (declared in config.json).
     const options = await getOptions();
+    if (options['enabled'] === false) return; // honor the toggle at startup
 
-    const label = <div>{`${options['greeting']}`}</div>;
+    const label = <div></div>;
     document.body.append(label);
 
-    // React to live changes the user makes in the popup (no page reload needed).
+    // onOptionChange fires once with the current values on load, then again on every change,
+    // so the same handler applies settings initially and live. Pass { immediate: false } to
+    // fire only on subsequent changes.
     onOptionChange(values => {
         label.textContent = `${values['greeting']}`;
     });
