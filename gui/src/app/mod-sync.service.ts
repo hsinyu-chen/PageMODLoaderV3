@@ -106,6 +106,8 @@ export class ModSyncService {
       const live = latest[name];
       if (live) mods[name].enabled = live.enabled;
     }
+    // modOptions is intentionally left untouched: a removed/renamed mod keeps its saved values
+    // so re-adding the folder restores them. Orphaned keys are accepted over data loss.
     await chrome.storage.local.set({ mods });
     await chrome.runtime.sendMessage('update');
   }

@@ -24,7 +24,7 @@ let _seeded = false              // loop has fetched its first snapshot; _values
 let _optSnapshot: string | null = null
 const _subs: Array<(values: PmlValues) => void> = []
 const _immediate: Array<(values: PmlValues) => void> = [] // awaiting their first (immediate) emit
-const _buttons = new Map<string, { last: number, cb: () => void }>()
+const _buttons = new Map<string, { last: number, cbs: Array<() => void> }>()
 
 function _poll(rev: number | null): Promise<{ rev: number, btn: number, values: PmlValues }> {
     return _send(__PML_EID__, { type: 'pmlPoll', name: __PML_NAME__, rev, btn: _btn })
@@ -56,8 +56,13 @@ export function onOptionChange(cb: (values: PmlValues) => void, opts?: { immedia
 /** Subscribe to a declared button. The current press count is taken as the baseline; only
  *  later increments fire the callback. */
 export function onButton(key: string, cb: () => void): void {
-    const last = typeof _values?.[key] === 'number' ? _values[key] as number : NaN
-    _buttons.set(key, { last, cb })
+    const entry = _buttons.get(key)
+    if (entry) {
+        entry.cbs.push(cb) // share this key's press baseline; new handler fires only on future presses
+    } else {
+        const last = typeof _values?.[key] === 'number' ? _values[key] as number : NaN
+        _buttons.set(key, { last, cbs: [cb] })
+    }
     _ensureLoop()
 }
 
@@ -108,7 +113,7 @@ function _dispatch(values: PmlValues): void {
         } else if (counter > state.last) {
             const times = counter - state.last // N presses across the poll gap → fire N times
             state.last = counter
-            for (let i = 0; i < times; i++) _safe(state.cb)
+            for (let i = 0; i < times; i++) for (const cb of state.cbs) _safe(cb)
         }
     }
     const snapshot = _optSnap(values)
