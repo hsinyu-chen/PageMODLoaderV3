@@ -242,6 +242,7 @@ function dispatchPml(inner: any, name: string, tabId: number | undefined, channe
         return
     }
     if (inner.type === MSG_PML_CHOICES) {
+        if (typeof inner.key !== 'string' || !inner.key) { response(); return } // no key ⇒ would index state by "undefined"
         // choices come from an untrusted page; keep only well-formed {value,label} string pairs so
         // a non-array or malformed item can't break the popup's @for / track
         const choices: ModOptionChoice[] = (Array.isArray(inner.choices) ? inner.choices : [])
@@ -253,6 +254,7 @@ function dispatchPml(inner: any, name: string, tabId: number | undefined, channe
         return
     }
     if (inner.type === MSG_PML_LABEL) {
+        if (typeof inner.key !== 'string' || !inner.key) { response(); return }
         const perMod = (tabDynamicLabels[tabId] ??= {})
         perMod[name] = { ...perMod[name], [inner.key]: String(inner.text) }
         // live-push to an open popup (no-op if none is listening)
@@ -269,6 +271,7 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
     if (isUnsafeKey(request?.name) || isUnsafeKey(request?.key)) return
     if (request && PML_TYPES.has(request.type)) {
         const name: string = request.name
+        if (typeof name !== 'string' || !name) { response(); return } // a poll without a name registers a poller keyed undefined
         const tabId = sender.tab?.id
         // keyFor decides the mode: a keyed mod accepts only the sealed envelope, an unkeyed one only
         // plaintext — a mismatched message opens to null and is dropped (no plaintext downgrade).

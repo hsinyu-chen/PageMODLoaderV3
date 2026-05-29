@@ -16,6 +16,14 @@ function isSafeName(s: string): boolean {
     return s !== '__proto__' && s !== 'constructor' && s !== 'prototype'
 }
 
+// 32-byte key as hex. Validating before hexToBytes keeps one corrupt storage entry from throwing
+// and aborting the whole registration (or a single keyFor lookup).
+const HEX_KEY = /^[0-9a-fA-F]{64}$/
+function decodeKey(hex: unknown): Uint8Array | undefined {
+    if (typeof hex !== 'string' || !HEX_KEY.test(hex)) return undefined
+    try { return hexToBytes(hex) } catch { return undefined }
+}
+
 // name → key bytes. Repopulated by ensureModKeys; keyFor falls back to storage on a cold miss.
 const keyCache: Record<string, Uint8Array> = Object.create(null)
 
@@ -24,21 +32,25 @@ const keyCache: Record<string, Uint8Array> = Object.create(null)
 export async function ensureModKeys(mods: ModDb): Promise<void> {
     const stored = ((await chrome.storage.local.get(STORAGE_MOD_KEYS))[STORAGE_MOD_KEYS] ?? {}) as Record<string, string>
     let dirty = false
-    // Generate for any enabled encrypt mod that lacks a key. ownValue: a mod named like an
+    // Generate for any enabled encrypt mod lacking a valid key. ownValue: a mod named like an
     // Object.prototype member (toString, …) must not read the inherited property as its "key".
     for (const mod of Object.values(mods)) {
         if (!mod.enabled || !mod.encrypt || !isSafeName(mod.name)) continue
-        if (typeof ownValue(stored, mod.name) !== 'string') { stored[mod.name] = bytesToHex(randomKey32()); dirty = true }
+        if (!decodeKey(ownValue(stored, mod.name))) { stored[mod.name] = bytesToHex(randomKey32()); dirty = true }
     }
-    // Prune keys for mods that are gone or no longer encrypt:true. A lingering key would make the SW
-    // treat the now-plaintext mod as encrypted and reject its polls (a self-inflicted downgrade block).
-    for (const name of Object.keys(stored)) {
-        if (!ownValue(mods, name)?.encrypt) { delete stored[name]; dirty = true }
+    // Prune keys for mods that are gone or no longer encrypt:true (a lingering key would make the SW
+    // treat the now-plaintext mod as encrypted and reject its polls). Never prune when mods is empty —
+    // a transient storage clear/sync would otherwise wipe every key and break live encrypted tabs.
+    if (Object.keys(mods).length) {
+        for (const name of Object.keys(stored)) {
+            if (!ownValue(mods, name)?.encrypt) { delete stored[name]; dirty = true }
+        }
     }
     if (dirty) await chrome.storage.local.set({ [STORAGE_MOD_KEYS]: stored })
     invalidateKeyCache()
     for (const [name, hex] of Object.entries(stored)) {
-        if (isSafeName(name) && typeof hex === 'string') keyCache[name] = hexToBytes(hex)
+        const bytes = isSafeName(name) ? decodeKey(hex) : undefined
+        if (bytes) keyCache[name] = bytes
     }
 }
 
@@ -48,9 +60,9 @@ export async function keyFor(name: string): Promise<Uint8Array | undefined> {
     if (!isSafeName(name)) return undefined
     if (keyCache[name]) return keyCache[name]
     const stored = ((await chrome.storage.local.get(STORAGE_MOD_KEYS))[STORAGE_MOD_KEYS] ?? {}) as Record<string, string>
-    const hex = ownValue(stored, name)
-    if (typeof hex !== 'string') return undefined
-    return (keyCache[name] = hexToBytes(hex))
+    const bytes = decodeKey(ownValue(stored, name))
+    if (!bytes) return undefined
+    return (keyCache[name] = bytes)
 }
 
 /** Drop the cache when modKeys changes underneath us (another context wrote it). */
