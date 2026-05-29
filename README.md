@@ -105,6 +105,10 @@ label text through the `@libs/pml` helpers (`getOptions`, `onOptionChange`, `onB
 usage, and **[demo-mods](demo-mods)** for ready-to-load examples (including one that exercises every
 control type).
 
+You don't have to use the helper: `pml.ts` is dependency-free (copy it anywhere), or talk to the
+extension directly over its message protocol — see
+[Without `@libs/pml`](mod-template/README.md#without-libspml).
+
 ## for who want build extension locally
 
 1. clone repo
