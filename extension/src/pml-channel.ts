@@ -48,7 +48,7 @@ export async function keyFor(name: string): Promise<Uint8Array | undefined> {
     if (!isSafeName(name)) return undefined
     if (keyCache[name]) return keyCache[name]
     const stored = ((await chrome.storage.local.get(STORAGE_MOD_KEYS))[STORAGE_MOD_KEYS] ?? {}) as Record<string, string>
-    const hex = stored[name]
+    const hex = ownValue(stored, name)
     if (typeof hex !== 'string') return undefined
     return (keyCache[name] = hexToBytes(hex))
 }
