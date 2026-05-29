@@ -33,6 +33,12 @@ export const MSG_PML_BUTTON = 'pmlButton'
 
 // Shared so an unconfigured checklist returns a stable reference — a fresh [] each call would
 // look like a changed value to Angular's [ngModel] every digest. Never mutated by callers.
+// Own-property read: an option key that collides with an Object.prototype member (toString,
+// valueOf, …) would otherwise return the inherited function instead of undefined.
+export function ownValue<T>(obj: Record<string, T>, key: string): T | undefined {
+    return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined
+}
+
 const EMPTY_CHECKLIST: readonly string[] = Object.freeze([])
 
 export function resolveOptionValue(option: ModOption, stored: ModOptionValue | undefined): ModOptionValue {

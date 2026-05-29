@@ -3,7 +3,7 @@ import {
     ModOptionsDb, ModOptionValues, TabDynamicChoices, TabDynamicLabels, ModOptionChoice,
     STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV,
     MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON,
-    resolveOptionValue
+    resolveOptionValue, ownValue
 } from "@lib/types";
 
 function isUserScriptsAvailable() {
@@ -128,8 +128,8 @@ function effectiveValues(mods: ModDb, modOptions: ModOptionsDb, name: string, ta
     for (const option of options) {
         if (option.type === 'label') continue // display-only, mod-pushed; not polled
         out[option.key] = option.type === 'button'
-            ? (counters[option.key] ?? 0)
-            : resolveOptionValue(option, stored[option.key])
+            ? (ownValue(counters, option.key) ?? 0)
+            : resolveOptionValue(option, ownValue(stored, option.key))
     }
     return out
 }

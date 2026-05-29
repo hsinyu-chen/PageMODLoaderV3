@@ -2,7 +2,7 @@ import { inject, Injectable, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import {
   Mod, ModOption, ModOptionChoice, ModOptionValue, ModOptionsDb, ModDynamicChoices, ModDynamicLabels, ModDisplayState,
-  STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON, resolveOptionValue,
+  STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON, resolveOptionValue, ownValue,
 } from '@lib/types';
 
 // Echoed through storage so a view ignores the option write it just made (no self-feedback,
@@ -84,7 +84,7 @@ export class ModOptionsService {
   }
 
   private value(mod: Mod, option: ModOption): ModOptionValue {
-    return resolveOptionValue(option, this.modOptions()[mod.name]?.[option.key]);
+    return resolveOptionValue(option, ownValue(this.modOptions()[mod.name] ?? {}, option.key));
   }
   boolValue(mod: Mod, option: ModOption): boolean { return this.value(mod, option) as boolean; }
   textValue(mod: Mod, option: ModOption): string { return this.value(mod, option) as string; }
