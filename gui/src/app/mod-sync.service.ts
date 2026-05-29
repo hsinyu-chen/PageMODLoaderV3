@@ -36,6 +36,15 @@ export class ModSyncService {
 
   async resync(dirHandle: FileSystemDirectoryHandle | undefined): Promise<void> {
     if (!dirHandle) return;
+    try {
+      await this.resyncInner(dirHandle);
+    } catch (e) {
+      console.error('Re-sync failed', e);
+      this.snackBar.open(`Re-sync failed: ${e}`, 'OK', { duration: 5000 });
+    }
+  }
+
+  private async resyncInner(dirHandle: FileSystemDirectoryHandle): Promise<void> {
     const values = await chrome.storage.local.get('mods');
     const current = (values['mods'] ?? {}) as ModDb;
     if ((await dirHandle.requestPermission({ mode: 'read' })) !== 'granted') {

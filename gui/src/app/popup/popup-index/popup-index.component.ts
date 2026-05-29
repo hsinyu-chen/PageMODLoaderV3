@@ -4,6 +4,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { ModExcutingResult, ModExcutionResultDb } from '@lib/types';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonModule } from '@angular/material/button';
 import { FolderControlsComponent } from '../../folder-controls/folder-controls.component';
 import { ModListComponent } from '../../mod-list/mod-list.component';
 
@@ -15,6 +16,7 @@ import { ModListComponent } from '../../mod-list/mod-list.component';
     MatTabsModule,
     MatIconModule,
     MatTooltipModule,
+    MatButtonModule,
     FolderControlsComponent,
     ModListComponent,
   ],
@@ -23,6 +25,10 @@ import { ModListComponent } from '../../mod-list/mod-list.component';
 })
 export class PopupIndexComponent implements OnInit {
   current = signal<ModExcutingResult[]>([]);
+
+  openOptions(): void {
+    chrome.tabs.create({ url: chrome.runtime.getURL('gui/index.html') + '#/option' });
+  }
 
   ngOnInit(): void {
     (async () => {
