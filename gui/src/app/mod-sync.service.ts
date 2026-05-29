@@ -124,6 +124,7 @@ function parseOptions(raw: unknown): ModOption[] | undefined {
     if (!o || typeof o !== 'object') throw new Error(`${where} must be an object`);
     const { key, type, label, choices, dynamic } = o as Record<string, unknown>;
     if (typeof key !== 'string' || !key) throw new Error(`${where}.key must be a non-empty string`);
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') throw new Error(`${where}.key must not be a reserved word`);
     if (seen.has(key)) throw new Error(`duplicate option key "${key}"`);
     seen.add(key);
     if (typeof type !== 'string' || !OPTION_TYPES.includes(type as ModOptionType)) {

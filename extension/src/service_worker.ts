@@ -203,7 +203,12 @@ chrome.runtime.onMessage.addListener((request, sender, response) => {
     }
     response(tabScriptTracker[request.query])
 });
+// name/key from the MAIN world index our state objects — reject prototype-polluting values.
+function isUnsafeKey(s: unknown): boolean {
+    return s !== undefined && (typeof s !== 'string' || s === '__proto__' || s === 'constructor' || s === 'prototype')
+}
 chrome.runtime.onMessageExternal.addListener((request: any, sender, response) => {
+    if (isUnsafeKey(request?.name) || isUnsafeKey(request?.key)) return
     if (request?.type === MSG_PML_POLL) {
         const tabId = sender.tab?.id
         const clientRev: number | null = request.rev

@@ -112,7 +112,9 @@ async function _loop(): Promise<void> {
                 for (const cb of _immediate.splice(0)) _safe(() => cb(r.values))
             }
             if (_needRepush) { _needRepush = false; _repushDynamic() } // SW came back — restore its state
-        } catch {
+        } catch (e: any) {
+            // extension reload/update permanently invalidates this page's context — stop, don't busy-loop
+            if ((e?.message ?? String(e)).includes('context invalidated')) { _looping = false; return }
             _needRepush = true // SW recycled / port closed — back off, re-poll (also wakes the SW)
             await _sleep(1000)
         }
