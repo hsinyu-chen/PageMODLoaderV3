@@ -77,6 +77,11 @@ function _ensureLoop(): void {
     void _loop()
 }
 
+// Isolate mod-author callbacks: one throwing handler must not abort the others or the poll loop.
+function _safe(run: () => void): void {
+    try { run() } catch (e) { console.error('[pml] option handler threw', e) }
+}
+
 async function _loop(): Promise<void> {
     while (_subs.length || _buttons.size) {
         try {
@@ -86,7 +91,7 @@ async function _loop(): Promise<void> {
             _dispatch(r.values) // on the seed pass this only sets baselines (fires nothing)
             if (!_seeded) {
                 _seeded = true
-                for (const cb of _immediate.splice(0)) cb(r.values)
+                for (const cb of _immediate.splice(0)) _safe(() => cb(r.values))
             }
         } catch {
             await _sleep(1000) // SW recycled / port closed — back off, re-poll (also wakes the SW)
@@ -103,7 +108,7 @@ function _dispatch(values: PmlValues): void {
         } else if (counter > state.last) {
             const times = counter - state.last // N presses across the poll gap → fire N times
             state.last = counter
-            for (let i = 0; i < times; i++) state.cb()
+            for (let i = 0; i < times; i++) _safe(state.cb)
         }
     }
     const snapshot = _optSnap(values)
@@ -111,7 +116,7 @@ function _dispatch(values: PmlValues): void {
         _optSnapshot = snapshot // seed, don't fire
     } else if (snapshot !== _optSnapshot) {
         _optSnapshot = snapshot
-        for (const cb of _subs) cb(values)
+        for (const cb of _subs) _safe(() => cb(values))
     }
 }
 

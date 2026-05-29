@@ -171,9 +171,9 @@ chrome.tabs.onCreated.addListener((tab) => {
         tabScriptTracker[tab.id] = {};
     }
 })
-chrome.tabs.onRemoved.addListener((tab) => {
-    delete tabScriptTracker[tab]
-    clearTabOptionState(tab)
+chrome.tabs.onRemoved.addListener((tabId) => {
+    delete tabScriptTracker[tabId]
+    clearTabOptionState(tabId)
 })
 chrome.runtime.onMessage.addListener((request, sender, response) => {
     if (request === 'update') {
