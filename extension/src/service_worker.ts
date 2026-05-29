@@ -217,6 +217,9 @@ function isUnsafeKey(s: unknown): boolean {
 const PML_TYPES: ReadonlySet<string> = new Set([MSG_PML, MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL])
 
 function dispatchPml(inner: any, name: string, tabId: number | undefined, channel: PmlChannel, response: (msg?: any) => void): void {
+    // Every PML message is per-tab; a tab-less sender can't be served and its poller would never be
+    // cleared by clearTabOptionState. Drop and close the port. (Guarded once: tabId is number below.)
+    if (typeof tabId !== 'number') { response(); return }
     if (isUnsafeKey(inner?.key)) { response(); return } // inner.key was sealed; close the held port on drop
     if (inner.type === MSG_PML_POLL) {
         const clientRev: number | null = inner.rev ?? null
@@ -239,27 +242,23 @@ function dispatchPml(inner: any, name: string, tabId: number | undefined, channe
         return
     }
     if (inner.type === MSG_PML_CHOICES) {
-        if (typeof tabId === 'number') {
-            // choices come from an untrusted page; keep only well-formed {value,label} string
-            // pairs so a non-array or malformed item can't break the popup's @for / track
-            const choices: ModOptionChoice[] = (Array.isArray(inner.choices) ? inner.choices : [])
-                .filter((c: any) => c && typeof c.value === 'string' && typeof c.label === 'string')
-                .map((c: any) => ({ value: c.value, label: c.label }))
-            const perMod = (tabDynamicChoices[tabId] ??= {})
-            perMod[name] = { ...perMod[name], [inner.key]: choices }
-        }
+        // choices come from an untrusted page; keep only well-formed {value,label} string pairs so
+        // a non-array or malformed item can't break the popup's @for / track
+        const choices: ModOptionChoice[] = (Array.isArray(inner.choices) ? inner.choices : [])
+            .filter((c: any) => c && typeof c.value === 'string' && typeof c.label === 'string')
+            .map((c: any) => ({ value: c.value, label: c.label }))
+        const perMod = (tabDynamicChoices[tabId] ??= {})
+        perMod[name] = { ...perMod[name], [inner.key]: choices }
         response({ ok: true }) // ack closes the MV3 port so the sender's promise doesn't reject
         return
     }
     if (inner.type === MSG_PML_LABEL) {
-        if (typeof tabId === 'number') {
-            const perMod = (tabDynamicLabels[tabId] ??= {})
-            perMod[name] = { ...perMod[name], [inner.key]: String(inner.text) }
-            // live-push to an open popup (no-op if none is listening)
-            chrome.runtime.sendMessage({
-                type: MSG_PML_LABEL_UPDATE, tabId, mod: name, key: inner.key, text: String(inner.text)
-            }).catch(() => { /* no popup open */ })
-        }
+        const perMod = (tabDynamicLabels[tabId] ??= {})
+        perMod[name] = { ...perMod[name], [inner.key]: String(inner.text) }
+        // live-push to an open popup (no-op if none is listening)
+        chrome.runtime.sendMessage({
+            type: MSG_PML_LABEL_UPDATE, tabId, mod: name, key: inner.key, text: String(inner.text)
+        }).catch(() => { /* no popup open */ })
         response({ ok: true })
         return
     }

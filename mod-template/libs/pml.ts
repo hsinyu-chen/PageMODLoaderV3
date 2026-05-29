@@ -53,6 +53,7 @@ async function _poll(rev: number | null): Promise<{ rev: number, btn: number, va
     // empty ⇒ the SW dropped the message (downgrade / tampered / key mismatch); surface it clearly
     // instead of a cryptic TypeError on resp.enc — _loop catches and retries either way.
     if (!resp) throw new Error('[pml] empty poll response (dropped by the extension)')
+    if (_enc && typeof resp.enc !== 'string') throw new Error('[pml] expected a sealed response, got plaintext/malformed')
     return (_enc ? __pmlCrypto.pmlOpen(__PML_KEY__, resp.enc) : resp) as { rev: number, btn: number, values: PmlValues }
 }
 function _sleep(ms: number): Promise<void> {

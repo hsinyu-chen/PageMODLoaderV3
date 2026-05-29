@@ -24,7 +24,7 @@ export type ModDisplayState = { choices: ModDynamicChoices, labels: ModDynamicLa
 
 export const STORAGE_MOD_OPTIONS = 'modOptions'
 export const STORAGE_MOD_OPTIONS_REV = 'modOptionsRev'
-// Per-mod AES-256-GCM keys: { [modName]: base64(32 bytes) }. Baked into each mod's injected
+// Per-mod AES-256-GCM keys: { [modName]: hex(32 bytes) }. Baked into each mod's injected
 // closure so the whole mod↔SW UI channel is encrypted; never exposed to the page.
 export const STORAGE_MOD_KEYS = 'modKeys'
 // Envelope type for every encrypted mod↔SW message: { type: MSG_PML, name, enc }. The real
