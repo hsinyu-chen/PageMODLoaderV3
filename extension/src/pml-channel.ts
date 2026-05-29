@@ -25,7 +25,7 @@ function decodeKey(hex: unknown): Uint8Array | undefined {
 }
 
 // name → key bytes. Repopulated by ensureModKeys; keyFor falls back to storage on a cold miss.
-const keyCache: Record<string, Uint8Array> = Object.create(null)
+let keyCache: Record<string, Uint8Array> = Object.create(null)
 
 /** Ensure every enabled encrypt:true mod has a persisted 256-bit key, then refresh the cache.
  *  Keys are generated once and reused across SW restarts so already-injected pages stay decryptable. */
@@ -67,7 +67,7 @@ export async function keyFor(name: string): Promise<Uint8Array | undefined> {
 
 /** Drop the cache when modKeys changes underneath us (another context wrote it). */
 export function invalidateKeyCache(): void {
-    for (const k in keyCache) delete keyCache[k]
+    keyCache = Object.create(null)
 }
 
 /** Whether a usable key is loaded for a mod. registScripts uses this to fail closed: an encrypt
