@@ -62,6 +62,7 @@ Notes:
 - `label` is **read-only display**: shows the static `default`, or whatever the mod last passed to `setLabel` (updates live while the popup is open).
 - **Value options are global** (apply to every matching tab); **buttons, dynamic choices and labels are per-tab** (only the active tab).
 - `dropdown`/`checklist` can set `"dynamic": true` and omit `choices` (or keep them as a fallback); the live list comes from `setChoices`.
+- Set top-level `"encrypt": true` in `config.json` to seal this mod's whole option channel (AES-256-GCM, per-mod key baked into the closure) — use it when an option holds a secret. The `@libs/pml` API is unchanged; see [Encrypting the channel](../README.md#encrypting-the-channel-optional).
 
 ### Without `@libs/pml`
 

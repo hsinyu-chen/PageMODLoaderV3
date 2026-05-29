@@ -1,10 +1,11 @@
 import {
-    Mod, ModDb, UserScriptClean, UserScriptNotify, ModExcutionResultDb,
+    Mod, ModDb, ModExcutionResultDb,
     ModOptionsDb, ModOptionValues, TabDynamicChoices, TabDynamicLabels, ModOptionChoice,
-    STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV,
-    MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON,
+    STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, STORAGE_MOD_KEYS,
+    MSG_PML, MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON,
     resolveOptionValue, ownValue
 } from "@lib/types";
+import { ensureModKeys, keyFor, invalidateKeyCache, cryptoBootstrap, newChannel, PmlChannel } from "./pml-channel";
 
 function isUserScriptsAvailable() {
     try {
@@ -43,9 +44,10 @@ function buildScripts(mod: Mod) {
     {
         code: `___pml__clean('${chrome.runtime.id}')`
     }]
-    // __PML_EID__/__PML_NAME__ live only in this IIFE closure — never on window — so @libs/pml
-    // (inlined into the mod bundle) can reach them while the page cannot read or tamper with them.
-    const bootstrap = `const __PML_EID__=${JSON.stringify(chrome.runtime.id)},__PML_NAME__=${JSON.stringify(mod.name)};`;
+    // __PML_EID__/__PML_NAME__ (and, for encrypt mods, the crypto impl + __PML_KEY__ baked by
+    // cryptoBootstrap) live only in this IIFE closure — never on window — so @libs/pml (inlined into
+    // the mod bundle) can reach them while the page cannot read or tamper with them.
+    const bootstrap = `${cryptoBootstrap(mod)}const __PML_EID__=${JSON.stringify(chrome.runtime.id)},__PML_NAME__=${JSON.stringify(mod.name)};`;
     for (const file of mod.files) {
         let code = '';
         if (file.type === 'script') {
@@ -78,8 +80,10 @@ function registScripts(): Promise<void> {
         try {
             if (!isUserScriptsAvailable()) return;
             const values = await chrome.storage.local.get('mods')
+            const mods = (values['mods'] ?? {}) as ModDb
+            await ensureModKeys(mods) // keys must exist before buildScripts bakes them into the closure
             const scripts: chrome.userScripts.RegisteredUserScript[] = [];
-            for (const [, mod] of Object.entries((values['mods'] ?? {}) as ModDb)) {
+            for (const [, mod] of Object.entries(mods)) {
                 if (mod.enabled) {
                     scripts.push({
                         id: mod.name,
@@ -207,54 +211,74 @@ chrome.runtime.onMessage.addListener((request, sender, response) => {
 function isUnsafeKey(s: unknown): boolean {
     return s !== undefined && (typeof s !== 'string' || s === '__proto__' || s === 'constructor' || s === 'prototype')
 }
-chrome.runtime.onMessageExternal.addListener((request: any, sender, response) => {
-    if (isUnsafeKey(request?.name) || isUnsafeKey(request?.key)) return
-    if (request?.type === MSG_PML_POLL) {
-        const tabId = sender.tab?.id
-        const clientRev: number | null = request.rev
-        const clientBtn: number = request.btn ?? 0
+
+// Every option/UI message — sealed envelope (MSG_PML) for an encrypt mod, or the bare type for a
+// plaintext one. The channel decides which it accepts; the inner type drives the dispatch.
+const PML_TYPES: ReadonlySet<string> = new Set([MSG_PML, MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL])
+
+function dispatchPml(inner: any, name: string, tabId: number | undefined, channel: PmlChannel, response: (msg: any) => void): void {
+    if (isUnsafeKey(inner?.key)) return // inner.key was sealed, so the outer guard couldn't see it
+    if (inner.type === MSG_PML_POLL) {
+        const clientRev: number | null = inner.rev ?? null
+        const clientBtn: number = inner.btn ?? 0
         // Subscribe first, then read state: a flush during the async read must not be lost (it
-        // would otherwise respond to a not-yet-pushed poller and leave it stuck).
-        const poller: Poller = { name: request.name, tabId, respond: response }
+        // would otherwise respond to a not-yet-pushed poller and leave it stuck). respond seals
+        // through the channel, so an encrypt mod's values never leave the SW in the clear.
+        const poller: Poller = { name, tabId, respond: (snapshot) => { try { response(channel.seal(snapshot)) } catch { /* port closed */ } } }
         pendingPollers.push(poller)
         void (async () => {
             const { mods, modOptions, rev } = await readOptionState()
             const idx = pendingPollers.indexOf(poller)
             if (idx === -1) return // a flush already responded while we were reading
             // btn compared with !== (not >) so an SW-restart counter reset still wakes the poll
-            if (clientRev === null || rev > clientRev || tabButtonTotal(request.name, tabId) !== clientBtn) {
+            if (clientRev === null || rev > clientRev || tabButtonTotal(name, tabId) !== clientBtn) {
                 pendingPollers.splice(idx, 1)
-                try { response(snapshotFor(mods, modOptions, rev, poller)) } catch { /* port closed */ }
+                poller.respond(snapshotFor(mods, modOptions, rev, poller))
             }
         })()
-        return true // async response: keep the message channel open until a value changes
+        return
     }
-    if (request?.type === MSG_PML_CHOICES) {
-        const tabId = sender.tab?.id
+    if (inner.type === MSG_PML_CHOICES) {
         if (typeof tabId === 'number') {
             // choices come from an untrusted page; keep only well-formed {value,label} string
             // pairs so a non-array or malformed item can't break the popup's @for / track
-            const choices: ModOptionChoice[] = (Array.isArray(request.choices) ? request.choices : [])
+            const choices: ModOptionChoice[] = (Array.isArray(inner.choices) ? inner.choices : [])
                 .filter((c: any) => c && typeof c.value === 'string' && typeof c.label === 'string')
                 .map((c: any) => ({ value: c.value, label: c.label }))
             const perMod = (tabDynamicChoices[tabId] ??= {})
-            perMod[request.name] = { ...perMod[request.name], [request.key]: choices }
+            perMod[name] = { ...perMod[name], [inner.key]: choices }
         }
-        response({ ok: true }) // close the MV3 message port so the sender's promise doesn't reject
+        response({ ok: true }) // ack closes the MV3 port so the sender's promise doesn't reject
         return
     }
-    if (request?.type === MSG_PML_LABEL) {
-        const tabId = sender.tab?.id
+    if (inner.type === MSG_PML_LABEL) {
         if (typeof tabId === 'number') {
             const perMod = (tabDynamicLabels[tabId] ??= {})
-            perMod[request.name] = { ...perMod[request.name], [request.key]: String(request.text) }
+            perMod[name] = { ...perMod[name], [inner.key]: String(inner.text) }
             // live-push to an open popup (no-op if none is listening)
             chrome.runtime.sendMessage({
-                type: MSG_PML_LABEL_UPDATE, tabId, mod: request.name, key: request.key, text: String(request.text)
+                type: MSG_PML_LABEL_UPDATE, tabId, mod: name, key: inner.key, text: String(inner.text)
             }).catch(() => { /* no popup open */ })
         }
         response({ ok: true })
         return
+    }
+    response({ ok: true }) // unknown inner type — close the port
+}
+
+chrome.runtime.onMessageExternal.addListener((request: any, sender, response) => {
+    if (isUnsafeKey(request?.name) || isUnsafeKey(request?.key)) return
+    if (request && PML_TYPES.has(request.type)) {
+        const name: string = request.name
+        const tabId = sender.tab?.id
+        // keyFor decides the mode: a keyed mod accepts only the sealed envelope, an unkeyed one only
+        // plaintext — a mismatched message opens to null and is dropped (no plaintext downgrade).
+        void (async () => {
+            const channel = newChannel({ key: await keyFor(name) })
+            const inner = channel.open(request)
+            if (inner) dispatchPml(inner, name, tabId, channel, response)
+        })()
+        return true // async: key lookup + (for poll) held until a value changes
     }
     if (request && sender.tab?.id) {
         if (!tabScriptTracker[sender.tab.id] || request.type === 'clean') {
@@ -288,6 +312,7 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
 })
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return
+    if (changes[STORAGE_MOD_KEYS]) invalidateKeyCache()
     if (changes[STORAGE_MOD_OPTIONS] || changes[STORAGE_MOD_OPTIONS_REV]) {
         flushPollers(() => true)
     }

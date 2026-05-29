@@ -40,3 +40,6 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Generated crypto bootstrap (built by rollup.crypto.config.js before the SW build)
+/src/generated/

@@ -97,6 +97,24 @@ to have the MOD fill its choices at runtime (omit or keep `choices` as a fallbac
 - **Value options** (toggle / text / dropdown / checklist) are global — they apply to every matching tab.
 - **Button, label, and dynamic choices** are per-tab — they target the page the popup was opened on.
 
+### Encrypting the channel (optional)
+
+Option values can hold secrets (an API token in a `text` option, say). The page-invisible channel
+already keeps them off the DOM and `window`, but any page script can call `chrome.runtime.sendMessage`
+against the extension, so a determined page could poll for another MOD's values. Set `"encrypt": true`
+at the top level of `config.json` to close that:
+
+```json
+{ "match": "https://xxx.net/*", "encrypt": true, "inject": [ … ], "options": [ … ] }
+```
+
+When on, the loader bakes a per-MOD AES-256-GCM key (and the cipher impl) into the MOD's private
+closure — never on `window` — and the **entire** option/UI channel is sealed end to end. A page script
+that intercepts the messages only sees ciphertext it can't read, and the service worker refuses to
+serve this MOD's values in the clear. Cost: ~10.5 kB of injected code per MOD, and it works on plain
+`http` pages too (no `crypto.subtle` dependency). Leave it off (default) for secret-free MODs to stay
+lean. The `@libs/pml` API is identical either way — the helper detects the mode automatically.
+
 ### Reading options from MOD code
 
 Your MOD reads values, reacts to changes, handles button presses, and pushes dynamic choices /
@@ -142,6 +160,15 @@ chrome.runtime.sendMessage(__PML_EID__, {
 
 In TypeScript, add `declare const __PML_EID__: string;` and `declare const __PML_NAME__: string;`
 so the compiler knows about the injected globals.
+
+**If the MOD sets `"encrypt": true`**, the wire shape changes: every message is wrapped as
+`{ type: 'pml', name: __PML_NAME__, enc }` where `enc` is the hex of `iv(12) ‖ AES-256-GCM(JSON(inner))`,
+and `inner` is the object you'd otherwise send (e.g. `{ type: 'pmlPoll', rev, btn }`). The poll
+response comes back as `{ enc }` sealing `{ rev, btn, values }`. The loader injects the per-MOD key as
+`__PML_KEY__` (a `Uint8Array`) and the cipher as `__pmlCrypto` (`{ pmlSeal, pmlOpen }`) into the same
+private closure, so a no-helper consumer seals with `__pmlCrypto.pmlSeal(__PML_KEY__, inner)` and opens
+the response with `__pmlCrypto.pmlOpen(__PML_KEY__, enc)`. The service worker rejects any plaintext
+message for an encrypted MOD (no downgrade). Copying `pml.ts` handles all of this for you.
 
 ## for who want build extension locally
 
