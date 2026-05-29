@@ -72,7 +72,7 @@ export type PmlChannel = {
 }
 
 /** A per-message channel. `option.key` present ⇒ encrypted (envelope only); absent ⇒ plaintext. */
-export function newChannel(option: { key?: Uint8Array }): PmlChannel {
+export function pmlChannel(option: { key?: Uint8Array }): PmlChannel {
     const key = option.key
     if (key) {
         return {

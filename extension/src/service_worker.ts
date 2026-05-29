@@ -5,7 +5,7 @@ import {
     MSG_PML, MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON,
     resolveOptionValue, ownValue
 } from "@lib/types";
-import { ensureModKeys, keyFor, invalidateKeyCache, cryptoBootstrap, newChannel, PmlChannel } from "./pml-channel";
+import { ensureModKeys, keyFor, invalidateKeyCache, cryptoBootstrap, pmlChannel, PmlChannel } from "./pml-channel";
 
 function isUserScriptsAvailable() {
     try {
@@ -216,8 +216,8 @@ function isUnsafeKey(s: unknown): boolean {
 // plaintext one. The channel decides which it accepts; the inner type drives the dispatch.
 const PML_TYPES: ReadonlySet<string> = new Set([MSG_PML, MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL])
 
-function dispatchPml(inner: any, name: string, tabId: number | undefined, channel: PmlChannel, response: (msg: any) => void): void {
-    if (isUnsafeKey(inner?.key)) return // inner.key was sealed, so the outer guard couldn't see it
+function dispatchPml(inner: any, name: string, tabId: number | undefined, channel: PmlChannel, response: (msg?: any) => void): void {
+    if (isUnsafeKey(inner?.key)) { response(); return } // inner.key was sealed; close the held port on drop
     if (inner.type === MSG_PML_POLL) {
         const clientRev: number | null = inner.rev ?? null
         const clientBtn: number = inner.btn ?? 0
@@ -274,9 +274,10 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         // keyFor decides the mode: a keyed mod accepts only the sealed envelope, an unkeyed one only
         // plaintext — a mismatched message opens to null and is dropped (no plaintext downgrade).
         void (async () => {
-            const channel = newChannel({ key: await keyFor(name) })
+            const channel = pmlChannel({ key: await keyFor(name) })
             const inner = channel.open(request)
             if (inner) dispatchPml(inner, name, tabId, channel, response)
+            else response() // dropped (downgrade / tampered / garbage) — close the held port, don't leak it
         })()
         return true // async: key lookup + (for poll) held until a value changes
     }
