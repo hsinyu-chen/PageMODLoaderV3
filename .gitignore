@@ -1,2 +1,3 @@
 *.zip
 *.tsbuildinfo
+/mod-template/MODs/**
