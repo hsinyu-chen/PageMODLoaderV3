@@ -175,6 +175,11 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     delete tabScriptTracker[tabId]
     clearTabOptionState(tabId)
 })
+// Navigating to a non-modded page sends no 'clean' (no mod runs there), so clear per-tab option
+// state on any navigation start to avoid leaking it until the tab closes.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === 'loading') clearTabOptionState(tabId)
+})
 chrome.runtime.onMessage.addListener((request, sender, response) => {
     if (request === 'update') {
         registScripts()
@@ -222,8 +227,11 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
     if (request?.type === MSG_PML_CHOICES) {
         const tabId = sender.tab?.id
         if (typeof tabId === 'number') {
-            // choices come from an untrusted page; a non-array would crash the popup's @for
-            const choices = Array.isArray(request.choices) ? request.choices as ModOptionChoice[] : []
+            // choices come from an untrusted page; keep only well-formed {value,label} string
+            // pairs so a non-array or malformed item can't break the popup's @for / track
+            const choices: ModOptionChoice[] = (Array.isArray(request.choices) ? request.choices : [])
+                .filter((c: any) => c && typeof c.value === 'string' && typeof c.label === 'string')
+                .map((c: any) => ({ value: c.value, label: c.label }))
             const perMod = (tabDynamicChoices[tabId] ??= {})
             perMod[request.name] = { ...perMod[request.name], [request.key]: choices }
         }
