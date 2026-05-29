@@ -39,6 +39,13 @@
         </table>
     </mat-tab>
     <mat-tab label="Options">
+        <div class="row">
+            <button mat-raised-button (click)="openOptions()">Open Option Page</button>
+        </div>
+        <p class="mobile-select-warning">
+            On mobile, "Select Mod Folder" in this popup may not respond. Use "Open Option Page"
+            and pick the folder there instead.
+        </p>
         <app-folder-controls></app-folder-controls>
         <app-mod-list></app-mod-list>
     </mat-tab>
