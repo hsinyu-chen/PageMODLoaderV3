@@ -44,3 +44,22 @@
 .pml-pg-body {
   opacity: 0.85;
 }
+
+.pml-pg-foot {
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.pml-pulse {
+  animation: pml-pulse 0.4s ease;
+}
+
+@keyframes pml-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--pml-accent, #1a73e8);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}

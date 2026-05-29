@@ -7,8 +7,9 @@ import { onOptionChange, onButton, setChoices, setLabel } from '@libs/pml';
 (() => {
     const title = <div class="pml-pg-title"></div>;
     const body = <div class="pml-pg-body"></div>;
+    const foot = <div class="pml-pg-foot">pings: 0</div>;
     const panel = <div class="pml-pg"></div>;
-    panel.append(title, body);
+    panel.append(title, body, foot);
     document.body.append(panel);
 
     // Dynamic dropdown: offer this page's first links as choices for the popup to pick from.
@@ -36,7 +37,15 @@ import { onOptionChange, onButton, setChoices, setLabel } from '@libs/pml';
         body.textContent = lines.join('  ·  ') || '(no sections)';
     });
 
-    // Button: per-tab event. Updates the read-only label live in the popup.
+    // Button: per-tab event. Acts on the on-page panel (count + pulse) and updates the
+    // read-only label shown live in the popup.
     let pings = 0;
-    onButton('ping', () => setLabel('status', `ping ×${++pings}`));
+    onButton('ping', () => {
+        pings++;
+        foot.textContent = `pings: ${pings}`;
+        setLabel('status', `ping ×${pings}`);
+        panel.classList.remove('pml-pulse');
+        void panel.offsetWidth; // reflow so the animation restarts on every press
+        panel.classList.add('pml-pulse');
+    });
 })();
