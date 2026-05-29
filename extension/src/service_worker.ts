@@ -1,4 +1,10 @@
-import { Mod, ModDb, UserScriptClean, UserScriptNotify, ModExcutionResultDb } from "@lib/types";
+import {
+    Mod, ModDb, UserScriptClean, UserScriptNotify, ModExcutionResultDb,
+    ModOptionsDb, ModOptionValues, TabDynamicChoices, ModOptionChoice,
+    STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV,
+    MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_GET_CHOICES, MSG_PML_BUTTON,
+    resolveOptionValue
+} from "@lib/types";
 
 function isUserScriptsAvailable() {
     try {
@@ -37,6 +43,9 @@ function buildScripts(mod: Mod) {
     {
         code: `___pml__clean('${chrome.runtime.id}')`
     }]
+    // __PML_EID__/__PML_NAME__ live only in this IIFE closure — never on window — so @libs/pml
+    // (inlined into the mod bundle) can reach them while the page cannot read or tamper with them.
+    const bootstrap = `const __PML_EID__=${JSON.stringify(chrome.runtime.id)},__PML_NAME__=${JSON.stringify(mod.name)};`;
     for (const file of mod.files) {
         let code = '';
         if (file.type === 'script') {
@@ -48,6 +57,7 @@ function buildScripts(mod: Mod) {
         js.push({
             code: `
         (async ()=>{
+            ${bootstrap}
             try{
                 /* user script start */;
                 ${code}
@@ -91,6 +101,62 @@ function registScripts(): Promise<void> {
     return registerChain;
 }
 const tabScriptTracker: { [id: number]: ModExcutionResultDb } = {}
+
+// --- Mod option long-poll ---
+// Values flow page-invisibly: MAIN-world mods pull via external messaging, SW holds the
+// response until a value changes (long poll). Button presses and dynamic choices are per-tab
+// (keyed by sender.tab.id); value options are global (chrome.storage.local).
+type Poller = { name: string, tabId: number | undefined, respond: (msg: any) => void }
+const pendingPollers: Poller[] = []
+const tabDynamicChoices: TabDynamicChoices = {}
+const tabButtonCounters: { [tabId: number]: { [mod: string]: { [key: string]: number } } } = {}
+
+async function readOptionState() {
+    const v = await chrome.storage.local.get(['mods', STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV])
+    return {
+        mods: (v['mods'] ?? {}) as ModDb,
+        modOptions: (v[STORAGE_MOD_OPTIONS] ?? {}) as ModOptionsDb,
+        rev: (v[STORAGE_MOD_OPTIONS_REV] ?? 0) as number
+    }
+}
+function effectiveValues(mods: ModDb, modOptions: ModOptionsDb, name: string, tabId: number | undefined): ModOptionValues {
+    const out: ModOptionValues = {}
+    const options = mods[name]?.options ?? []
+    const stored = modOptions[name] ?? {}
+    const counters = (tabId !== undefined ? tabButtonCounters[tabId]?.[name] : undefined) ?? {}
+    for (const option of options) {
+        out[option.key] = option.type === 'button'
+            ? (counters[option.key] ?? 0)
+            : resolveOptionValue(option, stored[option.key])
+    }
+    return out
+}
+// Total presses across this mod's buttons on this tab — a volatile wake signal that
+// `modOptionsRev` (value-only, durable) does not cover. Resets to 0 when the SW restarts.
+function tabButtonTotal(name: string, tabId: number | undefined): number {
+    const perKey = tabId !== undefined ? tabButtonCounters[tabId]?.[name] : undefined
+    if (!perKey) return 0
+    let total = 0
+    for (const key in perKey) total += perKey[key]
+    return total
+}
+function snapshotFor(mods: ModDb, modOptions: ModOptionsDb, rev: number, p: Poller) {
+    return { rev, btn: tabButtonTotal(p.name, p.tabId), values: effectiveValues(mods, modOptions, p.name, p.tabId) }
+}
+function flushPollers(predicate: (p: Poller) => boolean): void {
+    const drained: Poller[] = []
+    for (let i = pendingPollers.length - 1; i >= 0; i--) {
+        if (predicate(pendingPollers[i])) drained.push(...pendingPollers.splice(i, 1))
+    }
+    if (!drained.length) return
+    void (async () => {
+        const { mods, modOptions, rev } = await readOptionState()
+        for (const p of drained) {
+            try { p.respond(snapshotFor(mods, modOptions, rev, p)) } catch { /* port closed */ }
+        }
+    })()
+}
+
 chrome.tabs.onCreated.addListener((tab) => {
     if (tab.id) {
         tabScriptTracker[tab.id] = {};
@@ -98,15 +164,57 @@ chrome.tabs.onCreated.addListener((tab) => {
 })
 chrome.tabs.onRemoved.addListener((tab) => {
     delete tabScriptTracker[tab]
+    delete tabDynamicChoices[tab]
+    delete tabButtonCounters[tab]
+    flushPollers(p => p.tabId === tab)
 })
 chrome.runtime.onMessage.addListener((request, sender, response) => {
     if (request === 'update') {
         registScripts()
-    } else if (typeof request === 'object') {
-        response(tabScriptTracker[request.query])
+        return
     }
+    if (typeof request !== 'object' || request === null) return
+    if (request.type === MSG_PML_BUTTON) {
+        const { tabId, mod, key } = request as { tabId: number, mod: string, key: string }
+        if (typeof tabId === 'number') {
+            const perMod = (tabButtonCounters[tabId] ??= {})
+            const perKey = (perMod[mod] ??= {})
+            perKey[key] = (perKey[key] ?? 0) + 1
+            flushPollers(p => p.tabId === tabId)
+        }
+        return
+    }
+    if (request.type === MSG_PML_GET_CHOICES) {
+        response(tabDynamicChoices[(request as { tabId: number }).tabId] ?? {})
+        return
+    }
+    response(tabScriptTracker[request.query])
 });
-chrome.runtime.onMessageExternal.addListener((request: UserScriptNotify | UserScriptClean, sender, response) => {
+chrome.runtime.onMessageExternal.addListener((request: any, sender, response) => {
+    if (request?.type === MSG_PML_POLL) {
+        const tabId = sender.tab?.id
+        const clientRev: number | null = request.rev
+        const clientBtn: number = request.btn ?? 0
+        void (async () => {
+            const { mods, modOptions, rev } = await readOptionState()
+            const poller: Poller = { name: request.name, tabId, respond: response }
+            // btn compared with !== (not >) so an SW-restart counter reset still wakes the poll
+            if (clientRev === null || rev > clientRev || tabButtonTotal(request.name, tabId) !== clientBtn) {
+                response(snapshotFor(mods, modOptions, rev, poller))
+            } else {
+                pendingPollers.push(poller)
+            }
+        })()
+        return true // async response: keep the message channel open until a value changes
+    }
+    if (request?.type === MSG_PML_CHOICES) {
+        const tabId = sender.tab?.id
+        if (typeof tabId === 'number') {
+            const perMod = (tabDynamicChoices[tabId] ??= {})
+            perMod[request.name] = { ...perMod[request.name], [request.key]: request.choices as ModOptionChoice[] }
+        }
+        return
+    }
     if (request && sender.tab?.id) {
         if (!tabScriptTracker[sender.tab.id] || request.type === 'clean') {
             tabScriptTracker[sender.tab.id] = {}
@@ -130,6 +238,12 @@ chrome.runtime.onMessageExternal.addListener((request: UserScriptNotify | UserSc
             text: count ? count.toFixed(0) : '',
             tabId: sender.tab.id
         })
+    }
+})
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return
+    if (changes[STORAGE_MOD_OPTIONS] || changes[STORAGE_MOD_OPTIONS_REV]) {
+        flushPollers(() => true)
     }
 })
 chrome.runtime.onInstalled.addListener(details => {

@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Mod, ModDb, ModelConfig } from '@lib/types';
+import { Mod, ModDb, ModelConfig, ModOption, ModOptionType } from '@lib/types';
 import { getFileHandleDeep, readFile } from '../helpers';
 import { loadDirHandle, saveDirHandle } from '../dir-handle-db';
 
@@ -75,7 +75,8 @@ export class ModSyncService {
           throw new Error('invalid config.json: missing or invalid "match" or "inject"');
         }
         const enabled = current[entry.name]?.enabled !== false;
-        const mod: Mod = { match: obj.match, name: entry.name, files: [], enabled };
+        const options = parseOptions(obj.options);
+        const mod: Mod = { match: obj.match, name: entry.name, files: [], enabled, ...(options ? { options } : {}) };
 
         for (const injection of obj.inject) {
           try {
@@ -108,4 +109,62 @@ export class ModSyncService {
     await chrome.storage.local.set({ mods });
     await chrome.runtime.sendMessage('update');
   }
+}
+
+const OPTION_TYPES: ModOptionType[] = ['toggle', 'text', 'dropdown', 'checklist', 'button'];
+
+function parseOptions(raw: unknown): ModOption[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) throw new Error('"options" must be an array');
+  const seen = new Set<string>();
+  return raw.map((o, i) => {
+    const where = `options[${i}]`;
+    if (!o || typeof o !== 'object') throw new Error(`${where} must be an object`);
+    const { key, type, label, choices, dynamic } = o as Record<string, unknown>;
+    if (typeof key !== 'string' || !key) throw new Error(`${where}.key must be a non-empty string`);
+    if (seen.has(key)) throw new Error(`duplicate option key "${key}"`);
+    seen.add(key);
+    if (typeof type !== 'string' || !OPTION_TYPES.includes(type as ModOptionType)) {
+      throw new Error(`${where}.type must be one of ${OPTION_TYPES.join('/')}`);
+    }
+    if (typeof label !== 'string' || !label) throw new Error(`${where}.label must be a non-empty string`);
+
+    const option: ModOption = { key, type: type as ModOptionType, label };
+
+    if (type === 'dropdown' || type === 'checklist') {
+      if (choices !== undefined) option.choices = parseChoices(choices, where);
+      if (dynamic === true) option.dynamic = true;
+      if (!dynamic && !option.choices?.length) {
+        throw new Error(`${where} (${type}) needs non-empty "choices" unless "dynamic" is true`);
+      }
+    }
+
+    if (type !== 'button') {
+      const def = (o as Record<string, unknown>)['default'];
+      if (def !== undefined) {
+        validateDefault(type as ModOptionType, def, where);
+        option.default = def as ModOption['default'];
+      }
+    }
+    return option;
+  });
+}
+
+function parseChoices(raw: unknown, where: string): { value: string; label: string }[] {
+  if (!Array.isArray(raw)) throw new Error(`${where}.choices must be an array`);
+  return raw.map((c, i) => {
+    if (!c || typeof c !== 'object') throw new Error(`${where}.choices[${i}] must be an object`);
+    const { value, label } = c as Record<string, unknown>;
+    if (typeof value !== 'string') throw new Error(`${where}.choices[${i}].value must be a string`);
+    if (typeof label !== 'string') throw new Error(`${where}.choices[${i}].label must be a string`);
+    return { value, label };
+  });
+}
+
+function validateDefault(type: ModOptionType, def: unknown, where: string): void {
+  const ok =
+    type === 'toggle' ? typeof def === 'boolean' :
+    type === 'checklist' ? Array.isArray(def) && def.every(v => typeof v === 'string') :
+    typeof def === 'string'; // text, dropdown
+  if (!ok) throw new Error(`${where}.default has the wrong type for ${type}`);
 }

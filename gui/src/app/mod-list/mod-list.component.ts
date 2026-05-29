@@ -2,9 +2,17 @@ import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTableModule } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatSelectModule } from '@angular/material/select';
+import { MatListModule } from '@angular/material/list';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
-import { Mod, ModDb } from '@lib/types';
+import {
+  Mod, ModDb, ModOption, ModOptionChoice, ModOptionValue, ModOptionsDb, ModDynamicChoices,
+  STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, MSG_PML_GET_CHOICES, MSG_PML_BUTTON, resolveOptionValue,
+} from '@lib/types';
 
 @Component({
   selector: 'app-mod-list',
@@ -13,6 +21,11 @@ import { Mod, ModDb } from '@lib/types';
     MatExpansionModule,
     MatTableModule,
     MatSlideToggleModule,
+    MatSelectModule,
+    MatListModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
     FormsModule,
   ],
   templateUrl: './mod-list.component.html',
@@ -20,12 +33,18 @@ import { Mod, ModDb } from '@lib/types';
 })
 export class ModListComponent implements OnInit, OnDestroy {
   readonly mods = signal<Mod[]>([]);
+  readonly modOptions = signal<ModOptionsDb>({});
+  readonly dynamicChoices = signal<ModDynamicChoices>({});
+  private activeTabId: number | undefined;
   private snackBar = inject(MatSnackBar);
   private updateSyncContext = Promise.resolve();
+  private optionsSyncContext = Promise.resolve();
   private pendingWriteIds = new Set<string>();
 
   ngOnInit(): void {
     this.loadMods();
+    void this.loadOptions();
+    void this.loadDynamicChoices();
     chrome.storage.onChanged.addListener(this.onStorageChanged);
   }
 
@@ -49,15 +68,69 @@ export class ModListComponent implements OnInit, OnDestroy {
   }
 
   private applyModDb(db: ModDb | undefined) {
-    if (db) {
-      this.mods.set(Object.values(db));
-    } else {
-      this.mods.set([]);
-    }
+    this.mods.set(db ? Object.values(db) : []);
+  }
+
+  async loadOptions() {
+    const values = await chrome.storage.local.get(STORAGE_MOD_OPTIONS);
+    this.modOptions.set((values[STORAGE_MOD_OPTIONS] ?? {}) as ModOptionsDb);
+  }
+
+  async loadDynamicChoices() {
+    const tabs = await chrome.tabs.query({ currentWindow: true, active: true });
+    this.activeTabId = tabs[0]?.id;
+    if (this.activeTabId === undefined) return;
+    const choices = await chrome.runtime.sendMessage({ type: MSG_PML_GET_CHOICES, tabId: this.activeTabId });
+    this.dynamicChoices.set((choices ?? {}) as ModDynamicChoices);
   }
 
   getDisplayMatch(match: string | string[]) {
     return typeof match === 'string' ? match : match.join(',');
+  }
+
+  // Choices: dynamic (this tab's, from a running mod) take precedence, else the static schema.
+  getChoices(mod: Mod, option: ModOption): ModOptionChoice[] {
+    return this.dynamicChoices()[mod.name]?.[option.key] ?? option.choices ?? [];
+  }
+  // A dynamic control with no static fallback and no live choices is unusable until its page loads.
+  isUnavailable(mod: Mod, option: ModOption): boolean {
+    return !!option.dynamic && this.getChoices(mod, option).length === 0;
+  }
+
+  private value(mod: Mod, option: ModOption): ModOptionValue {
+    return resolveOptionValue(option, this.modOptions()[mod.name]?.[option.key]);
+  }
+  boolValue(mod: Mod, option: ModOption): boolean { return this.value(mod, option) as boolean; }
+  textValue(mod: Mod, option: ModOption): string { return this.value(mod, option) as string; }
+  listValue(mod: Mod, option: ModOption): string[] { return this.value(mod, option) as string[]; }
+
+  setValue(mod: Mod, option: ModOption, value: ModOptionValue): void {
+    const db = { ...this.modOptions() };
+    db[mod.name] = { ...(db[mod.name] ?? {}), [option.key]: value };
+    this.modOptions.set(db);
+    this.writeOptions();
+  }
+
+  pressButton(mod: Mod, key: string): void {
+    if (this.activeTabId === undefined) {
+      this.snackBar.open('Open the target page first to use this button.', 'OK', { duration: 3000 });
+      return;
+    }
+    void chrome.runtime.sendMessage({ type: MSG_PML_BUTTON, tabId: this.activeTabId, mod: mod.name, key });
+  }
+
+  private writeOptions(): void {
+    const last = this.optionsSyncContext;
+    this.optionsSyncContext = (async () => {
+      try { await last; } catch { /* previous write reported its own error */ }
+      const v = await chrome.storage.local.get(STORAGE_MOD_OPTIONS_REV);
+      const rev = ((v[STORAGE_MOD_OPTIONS_REV] ?? 0) as number) + 1;
+      try {
+        await chrome.storage.local.set({ [STORAGE_MOD_OPTIONS]: this.modOptions(), [STORAGE_MOD_OPTIONS_REV]: rev });
+      } catch (e) {
+        this.snackBar.open(`Failed to save options: ${e}`, 'OK', { duration: 4000 });
+      }
+    })();
   }
 
   updateState() {
