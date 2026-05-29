@@ -55,9 +55,13 @@ export class ModOptionsService {
     const tabs = await chrome.tabs.query({ currentWindow: true, active: true });
     this.activeTabId = tabs[0]?.id;
     if (this.activeTabId === undefined) return;
-    const display = await chrome.runtime.sendMessage({ type: MSG_PML_GET_DISPLAY, tabId: this.activeTabId }) as ModDisplayState | undefined;
-    this.dynamicChoices.set(display?.choices ?? {});
-    this.dynamicLabels.set(display?.labels ?? {});
+    try {
+      const display = await chrome.runtime.sendMessage({ type: MSG_PML_GET_DISPLAY, tabId: this.activeTabId }) as ModDisplayState | undefined;
+      this.dynamicChoices.set(display?.choices ?? {});
+      this.dynamicLabels.set(display?.labels ?? {});
+    } catch (e) {
+      console.warn('Failed to load display state from service worker', e);
+    }
   }
 
   // Per-tab controls (button/label/dynamic) only make sense in the popup, where there is an

@@ -146,6 +146,13 @@ function parseOptions(raw: unknown): ModOption[] | undefined {
       if (def !== undefined) {
         validateDefault(type as ModOptionType, def, where);
         option.default = def as ModOption['default'];
+        if (!dynamic && (type === 'dropdown' || type === 'checklist')) {
+          const choiceValues = new Set((option.choices ?? []).map(c => c.value));
+          const picked = type === 'checklist' ? (def as string[]) : [def as string];
+          for (const val of picked) {
+            if (!choiceValues.has(val)) throw new Error(`${where}.default "${val}" is not one of the choices`);
+          }
+        }
       }
     }
     return option;

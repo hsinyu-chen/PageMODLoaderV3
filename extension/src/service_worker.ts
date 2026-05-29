@@ -218,9 +218,12 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
     if (request?.type === MSG_PML_CHOICES) {
         const tabId = sender.tab?.id
         if (typeof tabId === 'number') {
+            // choices come from an untrusted page; a non-array would crash the popup's @for
+            const choices = Array.isArray(request.choices) ? request.choices as ModOptionChoice[] : []
             const perMod = (tabDynamicChoices[tabId] ??= {})
-            perMod[request.name] = { ...perMod[request.name], [request.key]: request.choices as ModOptionChoice[] }
+            perMod[request.name] = { ...perMod[request.name], [request.key]: choices }
         }
+        response({ ok: true }) // close the MV3 message port so the sender's promise doesn't reject
         return
     }
     if (request?.type === MSG_PML_LABEL) {
@@ -233,6 +236,7 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
                 type: MSG_PML_LABEL_UPDATE, tabId, mod: request.name, key: request.key, text: String(request.text)
             }).catch(() => { /* no popup open */ })
         }
+        response({ ok: true })
         return
     }
     if (request && sender.tab?.id) {
