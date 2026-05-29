@@ -105,9 +105,43 @@ label text through the `@libs/pml` helpers (`getOptions`, `onOptionChange`, `onB
 usage, and **[demo-mods](demo-mods)** for ready-to-load examples (including one that exercises every
 control type).
 
-You don't have to use the helper: `pml.ts` is dependency-free (copy it anywhere), or talk to the
-extension directly over its message protocol — see
-[Without `@libs/pml`](mod-template/README.md#without-libspml).
+### Without `@libs/pml`
+
+You don't have to use the helper. `pml.ts` is dependency-free (just `chrome` + two injected
+globals), so you can copy `mod-template/libs/pml.ts` into any project. To talk to the extension
+directly (any toolchain, plain JS), the helper is only a thin wrapper over this page-invisible
+message protocol.
+
+The loader injects two constants into your MOD's scope:
+
+- `__PML_EID__` — the extension id (the message target).
+- `__PML_NAME__` — this MOD's name.
+
+All option traffic is `chrome.runtime.sendMessage(__PML_EID__, …)` — it never touches the page's
+DOM or `window`:
+
+```js
+// rev:null returns the current snapshot immediately; re-send with the returned rev (and btn) to
+// block until something changes, then repeat — that is onOptionChange.
+const { rev, btn, values } = await chrome.runtime.sendMessage(__PML_EID__, {
+  type: 'pmlPoll', name: __PML_NAME__, rev: null, btn: 0,
+});
+// values[key] is each option's value; a button's value is a monotonically increasing press count.
+// (On SW restart the message port closes → the promise rejects; just re-poll.)
+
+// Provide dynamic dropdown/checklist choices for this tab's popup:
+chrome.runtime.sendMessage(__PML_EID__, {
+  type: 'pmlChoices', name: __PML_NAME__, key: 'sections', choices: [{ value: 'a', label: 'A' }],
+});
+
+// Set a read-only label's text (live in an open popup):
+chrome.runtime.sendMessage(__PML_EID__, {
+  type: 'pmlLabel', name: __PML_NAME__, key: 'status', text: 'ready',
+});
+```
+
+In TypeScript, add `declare const __PML_EID__: string;` and `declare const __PML_NAME__: string;`
+so the compiler knows about the injected globals.
 
 ## for who want build extension locally
 

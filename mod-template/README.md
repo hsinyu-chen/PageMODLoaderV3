@@ -65,37 +65,6 @@ Notes:
 
 ### Without `@libs/pml`
 
-`pml.ts` has no dependencies — it only uses `chrome` and two globals the loader injects. If you
-don't want the `@libs` path, just copy `libs/pml.ts` into your project. If you'd rather talk to the
-extension directly (any toolchain, plain JS), `@libs/pml` is only a thin wrapper over this protocol:
-
-The loader injects two constants into your MOD's scope:
-
-- `__PML_EID__` — the extension id (the message target).
-- `__PML_NAME__` — this MOD's name.
-
-All option traffic is `chrome.runtime.sendMessage(__PML_EID__, …)` (page-invisible — it never
-touches the page's DOM or `window`):
-
-```js
-// Read once / long-poll. rev:null returns the current snapshot immediately; re-send with the
-// returned rev (and btn) to block until something changes, then repeat — that is onOptionChange.
-const { rev, btn, values } = await chrome.runtime.sendMessage(__PML_EID__, {
-  type: 'pmlPoll', name: __PML_NAME__, rev: null, btn: 0,
-});
-// values[key] is each option's value; a button's value is a monotonically increasing press count.
-// (On SW restart the message port closes → the promise rejects; just re-poll.)
-
-// Provide dynamic dropdown/checklist choices for this tab's popup:
-chrome.runtime.sendMessage(__PML_EID__, {
-  type: 'pmlChoices', name: __PML_NAME__, key: 'sections', choices: [{ value: 'a', label: 'A' }],
-});
-
-// Set a read-only label's text (live in an open popup):
-chrome.runtime.sendMessage(__PML_EID__, {
-  type: 'pmlLabel', name: __PML_NAME__, key: 'status', text: 'ready',
-});
-```
-
-> In TypeScript without `pml.ts`, add `declare const __PML_EID__: string;` and
-> `declare const __PML_NAME__: string;` so the compiler knows about the injected globals.
+`pml.ts` has no dependencies — if you don't want the `@libs` path, just copy `libs/pml.ts` into
+your project. To use options with no helper at all (any toolchain, plain JS), the underlying
+message protocol is documented in the [main README](../README.md#without-libspml).
