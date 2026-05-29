@@ -1,8 +1,8 @@
 import {
     Mod, ModDb, UserScriptClean, UserScriptNotify, ModExcutionResultDb,
-    ModOptionsDb, ModOptionValues, TabDynamicChoices, ModOptionChoice,
+    ModOptionsDb, ModOptionValues, TabDynamicChoices, TabDynamicLabels, ModOptionChoice,
     STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV,
-    MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_GET_CHOICES, MSG_PML_BUTTON,
+    MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON,
     resolveOptionValue
 } from "@lib/types";
 
@@ -109,6 +109,7 @@ const tabScriptTracker: { [id: number]: ModExcutionResultDb } = {}
 type Poller = { name: string, tabId: number | undefined, respond: (msg: any) => void }
 const pendingPollers: Poller[] = []
 const tabDynamicChoices: TabDynamicChoices = {}
+const tabDynamicLabels: TabDynamicLabels = {}
 const tabButtonCounters: { [tabId: number]: { [mod: string]: { [key: string]: number } } } = {}
 
 async function readOptionState() {
@@ -125,6 +126,7 @@ function effectiveValues(mods: ModDb, modOptions: ModOptionsDb, name: string, ta
     const stored = modOptions[name] ?? {}
     const counters = (tabId !== undefined ? tabButtonCounters[tabId]?.[name] : undefined) ?? {}
     for (const option of options) {
+        if (option.type === 'label') continue // display-only, mod-pushed; not polled
         out[option.key] = option.type === 'button'
             ? (counters[option.key] ?? 0)
             : resolveOptionValue(option, stored[option.key])
@@ -165,6 +167,7 @@ chrome.tabs.onCreated.addListener((tab) => {
 chrome.tabs.onRemoved.addListener((tab) => {
     delete tabScriptTracker[tab]
     delete tabDynamicChoices[tab]
+    delete tabDynamicLabels[tab]
     delete tabButtonCounters[tab]
     flushPollers(p => p.tabId === tab)
 })
@@ -184,8 +187,9 @@ chrome.runtime.onMessage.addListener((request, sender, response) => {
         }
         return
     }
-    if (request.type === MSG_PML_GET_CHOICES) {
-        response(tabDynamicChoices[(request as { tabId: number }).tabId] ?? {})
+    if (request.type === MSG_PML_GET_DISPLAY) {
+        const tabId = (request as { tabId: number }).tabId
+        response({ choices: tabDynamicChoices[tabId] ?? {}, labels: tabDynamicLabels[tabId] ?? {} })
         return
     }
     response(tabScriptTracker[request.query])
@@ -215,6 +219,18 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         }
         return
     }
+    if (request?.type === MSG_PML_LABEL) {
+        const tabId = sender.tab?.id
+        if (typeof tabId === 'number') {
+            const perMod = (tabDynamicLabels[tabId] ??= {})
+            perMod[request.name] = { ...perMod[request.name], [request.key]: String(request.text) }
+            // live-push to an open popup (no-op if none is listening)
+            chrome.runtime.sendMessage({
+                type: MSG_PML_LABEL_UPDATE, tabId, mod: request.name, key: request.key, text: String(request.text)
+            }).catch(() => { /* no popup open */ })
+        }
+        return
+    }
     if (request && sender.tab?.id) {
         if (!tabScriptTracker[sender.tab.id] || request.type === 'clean') {
             tabScriptTracker[sender.tab.id] = {}
@@ -223,6 +239,7 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         // choices, button counts, and dead pollers don't bleed across navigations in the same tab.
         if (request.type === 'clean') {
             delete tabDynamicChoices[sender.tab.id]
+            delete tabDynamicLabels[sender.tab.id]
             delete tabButtonCounters[sender.tab.id]
             flushPollers(p => p.tabId === sender.tab!.id)
         }

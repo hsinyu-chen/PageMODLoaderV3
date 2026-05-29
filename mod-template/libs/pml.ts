@@ -58,6 +58,11 @@ export function setChoices(key: string, choices: PmlChoice[]): void {
     void _send(__PML_EID__, { type: 'pmlChoices', name: __PML_NAME__, key, choices })
 }
 
+/** Set the text of a read-only `label` control. Updates this tab's popup live if open. */
+export function setLabel(key: string, text: string): void {
+    void _send(__PML_EID__, { type: 'pmlLabel', name: __PML_NAME__, key, text })
+}
+
 function _ensureLoop(): void {
     if (_looping) return
     _looping = true

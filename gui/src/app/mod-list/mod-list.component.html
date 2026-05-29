@@ -49,6 +49,10 @@
                 @case('button'){
                 <button mat-stroked-button (click)="pressButton(mod,opt.key)">{{opt.label}}</button>
                 }
+                @case('label'){
+                <div class="display-label"><span class="display-caption">{{opt.label}}</span>
+                    <span class="display-text">{{getLabel(mod,opt)}}</span></div>
+                }
                 }
             </div>
             }

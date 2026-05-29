@@ -40,6 +40,7 @@ Declare them (see `config.json` for a full example):
   { "key": "theme",   "type": "dropdown", "label": "Theme", "default": "light",
     "choices": [{ "value": "light", "label": "Light" }, { "value": "dark", "label": "Dark" }] },
   { "key": "sections","type": "checklist","label": "Sections", "default": [], "dynamic": true },
+  { "key": "status",  "type": "label",    "label": "Status",   "default": "idle" },
   { "key": "refresh", "type": "button",   "label": "Refresh now" }
 ]
 ```
@@ -47,15 +48,17 @@ Declare them (see `config.json` for a full example):
 Use them from your code:
 
 ```ts
-import { getOptions, onOptionChange, onButton, setChoices } from '@libs/pml';
+import { getOptions, onOptionChange, onButton, setChoices, setLabel } from '@libs/pml';
 
 const opts = await getOptions();          // read current values once
 onOptionChange(v => { /* live updates */ });
 onButton('refresh', () => location.reload());
 setChoices('sections', [{ value: 'a', label: 'Section A' }]); // fill a dynamic dropdown/checklist
+setLabel('status', 'ready');              // update a read-only label (live in an open popup)
 ```
 
 Notes:
 - `toggle`→boolean, `text`/`dropdown`→string, `checklist`→string[].
-- **Value options are global** (apply to every matching tab); **buttons and dynamic choices are per-tab** (only the active tab).
+- `label` is **read-only display**: shows the static `default`, or whatever the mod last passed to `setLabel` (updates live while the popup is open).
+- **Value options are global** (apply to every matching tab); **buttons, dynamic choices and labels are per-tab** (only the active tab).
 - `dropdown`/`checklist` can set `"dynamic": true` and omit `choices` (or keep them as a fallback); the live list comes from `setChoices`.

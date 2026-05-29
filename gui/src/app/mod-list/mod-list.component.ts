@@ -10,8 +10,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
 import {
-  Mod, ModDb, ModOption, ModOptionChoice, ModOptionValue, ModOptionsDb, ModDynamicChoices,
-  STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, MSG_PML_GET_CHOICES, MSG_PML_BUTTON, resolveOptionValue,
+  Mod, ModDb, ModOption, ModOptionChoice, ModOptionValue, ModOptionsDb, ModDynamicChoices, ModDynamicLabels, ModDisplayState,
+  STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON, resolveOptionValue,
 } from '@lib/types';
 
 @Component({
@@ -35,6 +35,7 @@ export class ModListComponent implements OnInit, OnDestroy {
   readonly mods = signal<Mod[]>([]);
   readonly modOptions = signal<ModOptionsDb>({});
   readonly dynamicChoices = signal<ModDynamicChoices>({});
+  readonly dynamicLabels = signal<ModDynamicLabels>({});
   private activeTabId: number | undefined;
   private snackBar = inject(MatSnackBar);
   private updateSyncContext = Promise.resolve();
@@ -44,13 +45,22 @@ export class ModListComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadMods();
     void this.loadOptions();
-    void this.loadDynamicChoices();
+    chrome.runtime.onMessage.addListener(this.onLabelUpdate);
+    void this.loadDisplay();
     chrome.storage.onChanged.addListener(this.onStorageChanged);
   }
 
   ngOnDestroy(): void {
     chrome.storage.onChanged.removeListener(this.onStorageChanged);
+    chrome.runtime.onMessage.removeListener(this.onLabelUpdate);
   }
+
+  private onLabelUpdate = (request: any) => {
+    if (request?.type !== MSG_PML_LABEL_UPDATE || request.tabId !== this.activeTabId) return;
+    const db = { ...this.dynamicLabels() };
+    db[request.mod] = { ...(db[request.mod] ?? {}), [request.key]: request.text };
+    this.dynamicLabels.set(db);
+  };
 
   private onStorageChanged = (
     changes: { [key: string]: chrome.storage.StorageChange },
@@ -76,12 +86,13 @@ export class ModListComponent implements OnInit, OnDestroy {
     this.modOptions.set((values[STORAGE_MOD_OPTIONS] ?? {}) as ModOptionsDb);
   }
 
-  async loadDynamicChoices() {
+  async loadDisplay() {
     const tabs = await chrome.tabs.query({ currentWindow: true, active: true });
     this.activeTabId = tabs[0]?.id;
     if (this.activeTabId === undefined) return;
-    const choices = await chrome.runtime.sendMessage({ type: MSG_PML_GET_CHOICES, tabId: this.activeTabId });
-    this.dynamicChoices.set((choices ?? {}) as ModDynamicChoices);
+    const display = await chrome.runtime.sendMessage({ type: MSG_PML_GET_DISPLAY, tabId: this.activeTabId }) as ModDisplayState | undefined;
+    this.dynamicChoices.set(display?.choices ?? {});
+    this.dynamicLabels.set(display?.labels ?? {});
   }
 
   getDisplayMatch(match: string | string[]) {
@@ -95,6 +106,11 @@ export class ModListComponent implements OnInit, OnDestroy {
   // A dynamic control with no static fallback and no live choices is unusable until its page loads.
   isUnavailable(mod: Mod, option: ModOption): boolean {
     return !!option.dynamic && this.getChoices(mod, option).length === 0;
+  }
+
+  // Read-only label: the running mod's live text (per-tab) wins, else the static default.
+  getLabel(mod: Mod, option: ModOption): string {
+    return this.dynamicLabels()[mod.name]?.[option.key] ?? (option.default as string | undefined) ?? '';
   }
 
   private value(mod: Mod, option: ModOption): ModOptionValue {

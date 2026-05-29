@@ -41,6 +41,12 @@
             "dynamic": true
         },
         {
+            "key": "status",
+            "type": "label",
+            "label": "Status",
+            "default": "idle"
+        },
+        {
             "key": "refresh",
             "type": "button",
             "label": "Refresh now"

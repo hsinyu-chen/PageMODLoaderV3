@@ -1,6 +1,6 @@
 import './index.scss';
 import { _html } from '@libs/helpers';
-import { getOptions, onOptionChange, onButton, setChoices } from '@libs/pml';
+import { getOptions, onOptionChange, onButton, setChoices, setLabel } from '@libs/pml';
 
 (async () => {
     // Read the user's option values (declared in config.json) once at startup.
@@ -24,4 +24,7 @@ import { getOptions, onOptionChange, onButton, setChoices } from '@libs/pml';
         { value: 'a', label: 'Section A' },
         { value: 'b', label: 'Section B' },
     ]);
+
+    // Update a read-only label; reflects live in an open popup.
+    setLabel('status', 'ready');
 })();

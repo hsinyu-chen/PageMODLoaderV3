@@ -1,7 +1,7 @@
 
 export type InjectFileType = 'script' | 'style'
 
-export type ModOptionType = 'toggle' | 'text' | 'dropdown' | 'checklist' | 'button'
+export type ModOptionType = 'toggle' | 'text' | 'dropdown' | 'checklist' | 'button' | 'label'
 export type ModOptionChoice = { value: string, label: string }
 export type ModOption = {
     key: string,
@@ -17,12 +17,18 @@ export type ModOptionValues = { [key: string]: ModOptionValue }
 export type ModOptionsDb = { [modName: string]: ModOptionValues }
 export type ModDynamicChoices = { [modName: string]: { [key: string]: ModOptionChoice[] } }
 export type TabDynamicChoices = { [tabId: number]: ModDynamicChoices }
+export type ModDynamicLabels = { [modName: string]: { [key: string]: string } }
+export type TabDynamicLabels = { [tabId: number]: ModDynamicLabels }
+// popup's one-shot fetch of a tab's mod-pushed display state
+export type ModDisplayState = { choices: ModDynamicChoices, labels: ModDynamicLabels }
 
 export const STORAGE_MOD_OPTIONS = 'modOptions'
 export const STORAGE_MOD_OPTIONS_REV = 'modOptionsRev'
 export const MSG_PML_POLL = 'pmlPoll'
 export const MSG_PML_CHOICES = 'pmlChoices'
-export const MSG_PML_GET_CHOICES = 'pmlGetChoices'
+export const MSG_PML_LABEL = 'pmlLabel'
+export const MSG_PML_GET_DISPLAY = 'pmlGetDisplay'
+export const MSG_PML_LABEL_UPDATE = 'pmlLabelUpdate'
 export const MSG_PML_BUTTON = 'pmlButton'
 
 export function resolveOptionValue(option: ModOption, stored: ModOptionValue | undefined): ModOptionValue {

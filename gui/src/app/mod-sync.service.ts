@@ -111,7 +111,7 @@ export class ModSyncService {
   }
 }
 
-const OPTION_TYPES: ModOptionType[] = ['toggle', 'text', 'dropdown', 'checklist', 'button'];
+const OPTION_TYPES: ModOptionType[] = ['toggle', 'text', 'dropdown', 'checklist', 'button', 'label'];
 
 function parseOptions(raw: unknown): ModOption[] | undefined {
   if (raw === undefined) return undefined;

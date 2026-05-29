@@ -35,4 +35,19 @@ table {
     button {
         align-self: flex-start;
     }
+
+    .display-label {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+
+        .display-caption {
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+
+        .display-text {
+            font-weight: 500;
+        }
+    }
 }
