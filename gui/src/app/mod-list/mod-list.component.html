@@ -7,56 +7,8 @@
             <mat-panel-description>{{getDisplayMatch(mod.match)}}</mat-panel-description>
         </mat-expansion-panel-header>
 
-        @if(visibleOptions(mod).length){
-        <div class="options">
-            @for(opt of visibleOptions(mod); track opt.key){
-            <div class="option-row">
-                @switch(opt.type){
-                @case('toggle'){
-                <mat-slide-toggle [ngModel]="boolValue(mod,opt)"
-                    (ngModelChange)="setValue(mod,opt,$event)">{{opt.label}}</mat-slide-toggle>
-                }
-                @case('text'){
-                <mat-form-field appearance="outline">
-                    <mat-label>{{opt.label}}</mat-label>
-                    <input matInput [ngModel]="textValue(mod,opt)" (ngModelChange)="setValue(mod,opt,$event)">
-                </mat-form-field>
-                }
-                @case('dropdown'){
-                <mat-form-field appearance="outline">
-                    <mat-label>{{opt.label}}</mat-label>
-                    <mat-select [ngModel]="textValue(mod,opt)" (ngModelChange)="setValue(mod,opt,$event)"
-                        [disabled]="isUnavailable(mod,opt)">
-                        @for(c of getChoices(mod,opt); track c.value){
-                        <mat-option [value]="c.value">{{c.label}}</mat-option>
-                        }
-                    </mat-select>
-                </mat-form-field>
-                @if(isUnavailable(mod,opt)){<span class="hint">Open the target page to load options</span>}
-                }
-                @case('checklist'){
-                <div class="checklist-label">{{opt.label}}</div>
-                @if(isUnavailable(mod,opt)){
-                <span class="hint">Open the target page to load options</span>
-                } @else {
-                <mat-selection-list [ngModel]="listValue(mod,opt)" (ngModelChange)="setValue(mod,opt,$event)">
-                    @for(c of getChoices(mod,opt); track c.value){
-                    <mat-list-option [value]="c.value">{{c.label}}</mat-list-option>
-                    }
-                </mat-selection-list>
-                }
-                }
-                @case('button'){
-                <button mat-stroked-button (click)="pressButton(mod,opt.key)">{{opt.label}}</button>
-                }
-                @case('label'){
-                <div class="display-label"><span class="display-caption">{{opt.label}}</span>
-                    <span class="display-text">{{getLabel(mod,opt)}}</span></div>
-                }
-                }
-            </div>
-            }
-        </div>
+        @if(optionsSvc.visibleOptions(mod, surface()).length){
+        <app-mod-options [mod]="mod" [surface]="surface()"></app-mod-options>
         }
 
         <table mat-table [dataSource]="mod.files" class="mat-elevation-z8">

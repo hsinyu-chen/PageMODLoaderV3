@@ -2,22 +2,14 @@ import { Component, inject, input, OnDestroy, OnInit, signal } from '@angular/co
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTableModule } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatSelectModule } from '@angular/material/select';
-import { MatListModule } from '@angular/material/list';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
-import {
-  Mod, ModDb, ModOption, ModOptionChoice, ModOptionValue, ModOptionsDb, ModDynamicChoices, ModDynamicLabels, ModDisplayState,
-  STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON, resolveOptionValue,
-} from '@lib/types';
+import { Mod, ModDb } from '@lib/types';
+import { ModOptionsService } from '../mod-options.service';
+import { ModOptionsComponent } from '../mod-options/mod-options.component';
 
-// Per-write tokens echoed through storage so a view can ignore the change it just made
-// (avoids self-feedback / clobbering a focused input).
+// Echoed through storage so this view ignores the mod-enable write it just made.
 const MODS_WRITE_ID = 'modsWriteId';
-const MOD_OPTIONS_WRITE_ID = 'modOptionsWriteId';
 
 @Component({
   selector: 'app-mod-list',
@@ -26,12 +18,8 @@ const MOD_OPTIONS_WRITE_ID = 'modOptionsWriteId';
     MatExpansionModule,
     MatTableModule,
     MatSlideToggleModule,
-    MatSelectModule,
-    MatListModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatButtonModule,
     FormsModule,
+    ModOptionsComponent,
   ],
   templateUrl: './mod-list.component.html',
   styleUrl: './mod-list.component.scss',
@@ -41,57 +29,29 @@ export class ModListComponent implements OnInit, OnDestroy {
   // controls (button/label/dynamic) are hidden there.
   readonly surface = input<'popup' | 'options'>('popup');
   readonly mods = signal<Mod[]>([]);
-  readonly modOptions = signal<ModOptionsDb>({});
-  readonly dynamicChoices = signal<ModDynamicChoices>({});
-  readonly dynamicLabels = signal<ModDynamicLabels>({});
-  private activeTabId: number | undefined;
+  readonly optionsSvc = inject(ModOptionsService);
   private snackBar = inject(MatSnackBar);
   private updateSyncContext = Promise.resolve();
-  private optionsSyncContext = Promise.resolve();
   private pendingWriteIds = new Set<string>();
-  private pendingOptionWriteIds = new Set<string>();
 
   ngOnInit(): void {
     this.loadMods();
-    void this.loadOptions();
-    chrome.runtime.onMessage.addListener(this.onLabelUpdate);
-    void this.loadDisplay();
     chrome.storage.onChanged.addListener(this.onStorageChanged);
   }
 
   ngOnDestroy(): void {
     chrome.storage.onChanged.removeListener(this.onStorageChanged);
-    chrome.runtime.onMessage.removeListener(this.onLabelUpdate);
   }
-
-  private onLabelUpdate = (request: any) => {
-    if (request?.type !== MSG_PML_LABEL_UPDATE || request.tabId !== this.activeTabId) return;
-    const db = { ...this.dynamicLabels() };
-    db[request.mod] = { ...(db[request.mod] ?? {}), [request.key]: request.text };
-    this.dynamicLabels.set(db);
-  };
 
   private onStorageChanged = (
     changes: { [key: string]: chrome.storage.StorageChange },
     areaName: chrome.storage.AreaName
   ) => {
-    if (areaName !== 'local') return;
-    if (changes['mods'] && !this.isOwnWrite(changes, MODS_WRITE_ID, this.pendingWriteIds)) {
-      this.applyModDb(changes['mods'].newValue as ModDb | undefined);
-    }
-    if (changes[STORAGE_MOD_OPTIONS] && !this.isOwnWrite(changes, MOD_OPTIONS_WRITE_ID, this.pendingOptionWriteIds)) {
-      this.modOptions.set((changes[STORAGE_MOD_OPTIONS].newValue ?? {}) as ModOptionsDb);
-    }
+    if (areaName !== 'local' || !changes['mods']) return;
+    const incomingWriteId = changes[MODS_WRITE_ID]?.newValue;
+    if (typeof incomingWriteId === 'string' && this.pendingWriteIds.delete(incomingWriteId)) return;
+    this.applyModDb(changes['mods'].newValue as ModDb | undefined);
   };
-
-  private isOwnWrite(
-    changes: { [key: string]: chrome.storage.StorageChange },
-    writeIdKey: string,
-    pending: Set<string>
-  ): boolean {
-    const incoming = changes[writeIdKey]?.newValue;
-    return typeof incoming === 'string' && pending.delete(incoming);
-  }
 
   async loadMods() {
     const values = await chrome.storage.local.get('mods');
@@ -102,87 +62,8 @@ export class ModListComponent implements OnInit, OnDestroy {
     this.mods.set(db ? Object.values(db) : []);
   }
 
-  async loadOptions() {
-    const values = await chrome.storage.local.get(STORAGE_MOD_OPTIONS);
-    this.modOptions.set((values[STORAGE_MOD_OPTIONS] ?? {}) as ModOptionsDb);
-  }
-
-  async loadDisplay() {
-    const tabs = await chrome.tabs.query({ currentWindow: true, active: true });
-    this.activeTabId = tabs[0]?.id;
-    if (this.activeTabId === undefined) return;
-    const display = await chrome.runtime.sendMessage({ type: MSG_PML_GET_DISPLAY, tabId: this.activeTabId }) as ModDisplayState | undefined;
-    this.dynamicChoices.set(display?.choices ?? {});
-    this.dynamicLabels.set(display?.labels ?? {});
-  }
-
   getDisplayMatch(match: string | string[]) {
     return typeof match === 'string' ? match : match.join(',');
-  }
-
-  // Per-tab controls (button/label/dynamic) only make sense in the popup, where there is an
-  // active target page. The options page hides them and shows only global value options.
-  visibleOptions(mod: Mod): ModOption[] {
-    const options = mod.options ?? [];
-    if (this.surface() === 'popup') return options;
-    return options.filter(o => o.type !== 'button' && o.type !== 'label' && !o.dynamic);
-  }
-
-  // Choices: dynamic (this tab's, from a running mod) take precedence, else the static schema.
-  getChoices(mod: Mod, option: ModOption): ModOptionChoice[] {
-    return this.dynamicChoices()[mod.name]?.[option.key] ?? option.choices ?? [];
-  }
-  // A dynamic control with no static fallback and no live choices is unusable until its page loads.
-  isUnavailable(mod: Mod, option: ModOption): boolean {
-    return !!option.dynamic && this.getChoices(mod, option).length === 0;
-  }
-
-  // Read-only label: the running mod's live text (per-tab) wins, else the static default.
-  getLabel(mod: Mod, option: ModOption): string {
-    return this.dynamicLabels()[mod.name]?.[option.key] ?? (option.default as string | undefined) ?? '';
-  }
-
-  private value(mod: Mod, option: ModOption): ModOptionValue {
-    return resolveOptionValue(option, this.modOptions()[mod.name]?.[option.key]);
-  }
-  boolValue(mod: Mod, option: ModOption): boolean { return this.value(mod, option) as boolean; }
-  textValue(mod: Mod, option: ModOption): string { return this.value(mod, option) as string; }
-  listValue(mod: Mod, option: ModOption): string[] { return this.value(mod, option) as string[]; }
-
-  setValue(mod: Mod, option: ModOption, value: ModOptionValue): void {
-    const db = { ...this.modOptions() };
-    db[mod.name] = { ...(db[mod.name] ?? {}), [option.key]: value };
-    this.modOptions.set(db);
-    this.writeOptions();
-  }
-
-  pressButton(mod: Mod, key: string): void {
-    if (this.activeTabId === undefined) {
-      this.snackBar.open('Open the target page first to use this button.', 'OK', { duration: 3000 });
-      return;
-    }
-    void chrome.runtime.sendMessage({ type: MSG_PML_BUTTON, tabId: this.activeTabId, mod: mod.name, key });
-  }
-
-  private writeOptions(): void {
-    const last = this.optionsSyncContext;
-    this.optionsSyncContext = (async () => {
-      try { await last; } catch { /* previous write reported its own error */ }
-      const v = await chrome.storage.local.get(STORAGE_MOD_OPTIONS_REV);
-      const rev = ((v[STORAGE_MOD_OPTIONS_REV] ?? 0) as number) + 1;
-      const writeId = crypto.randomUUID();
-      this.pendingOptionWriteIds.add(writeId);
-      try {
-        await chrome.storage.local.set({
-          [STORAGE_MOD_OPTIONS]: this.modOptions(),
-          [STORAGE_MOD_OPTIONS_REV]: rev,
-          [MOD_OPTIONS_WRITE_ID]: writeId,
-        });
-      } catch (e) {
-        this.pendingOptionWriteIds.delete(writeId);
-        this.snackBar.open(`Failed to save options: ${e}`, 'OK', { duration: 4000 });
-      }
-    })();
   }
 
   updateState() {
