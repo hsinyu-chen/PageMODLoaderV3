@@ -159,6 +159,13 @@ function flushPollers(predicate: (p: Poller) => boolean): void {
     })()
 }
 
+function clearTabOptionState(tabId: number): void {
+    delete tabDynamicChoices[tabId]
+    delete tabDynamicLabels[tabId]
+    delete tabButtonCounters[tabId]
+    flushPollers(p => p.tabId === tabId)
+}
+
 chrome.tabs.onCreated.addListener((tab) => {
     if (tab.id) {
         tabScriptTracker[tab.id] = {};
@@ -166,10 +173,7 @@ chrome.tabs.onCreated.addListener((tab) => {
 })
 chrome.tabs.onRemoved.addListener((tab) => {
     delete tabScriptTracker[tab]
-    delete tabDynamicChoices[tab]
-    delete tabDynamicLabels[tab]
-    delete tabButtonCounters[tab]
-    flushPollers(p => p.tabId === tab)
+    clearTabOptionState(tab)
 })
 chrome.runtime.onMessage.addListener((request, sender, response) => {
     if (request === 'update') {
@@ -238,10 +242,7 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         // 'clean' fires as a page (re)loads — drop the old page's per-tab option state so dynamic
         // choices, button counts, and dead pollers don't bleed across navigations in the same tab.
         if (request.type === 'clean') {
-            delete tabDynamicChoices[sender.tab.id]
-            delete tabDynamicLabels[sender.tab.id]
-            delete tabButtonCounters[sender.tab.id]
-            flushPollers(p => p.tabId === sender.tab!.id)
+            clearTabOptionState(sender.tab.id)
         }
 
         if (request.type === 'userScriptExcute') {
