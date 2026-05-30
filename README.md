@@ -127,6 +127,11 @@ control type).
 
 ### Without `@libs/pml`
 
+> **Recommended: use `@libs/pml`.** It owns the lifecycle edge cases for you — re-polling on a
+> service-worker restart *and* on a BFCache restore, re-pushing dynamic choices/labels, plus the
+> encryption envelope. Reach for the raw protocol below only when you genuinely can't bundle the
+> helper (no build step, or a non-JS toolchain).
+
 You don't have to use the helper. `pml.ts` is dependency-free (just `chrome` + two injected
 globals), so you can copy `mod-template/libs/pml.ts` into any project. To talk to the extension
 directly (any toolchain, plain JS), the helper is only a thin wrapper over this page-invisible
@@ -148,6 +153,8 @@ const { rev, btn, values } = await chrome.runtime.sendMessage(__PML_EID__, {
 });
 // values[key] is each option's value; a button's value is a monotonically increasing press count.
 // (On SW restart the message port closes → the promise rejects; just re-poll.)
+// (Same after a BFCache restore — pageshow with event.persisted severs the held poll; re-poll then
+//  and re-send your pmlChoices/pmlLabel to resume. @libs/pml does this for you.)
 
 // Provide dynamic dropdown/checklist choices for this tab's popup:
 chrome.runtime.sendMessage(__PML_EID__, {
