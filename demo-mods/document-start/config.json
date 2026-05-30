@@ -1,0 +1,8 @@
+{
+    "match": "https://www.google.com/",
+    "runAt": "document_start",
+    "inject": [
+        { "path": "dist/index.js", "type": "script" },
+        { "path": "dist/index.css", "type": "style" }
+    ]
+}

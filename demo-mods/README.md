@@ -7,6 +7,7 @@ Reference MODs that target <https://www.google.com/>. Each folder is a MOD
 | --- | --- |
 | `hello-google` | the simplest MOD: inject a DOM element + CSS, no options API |
 | `options-playground` | every option type — toggle / text / dropdown / checklist / **dynamic** dropdown / **label** / **button** — read live via `@libs/pml` |
+| `document-start` | `"runAt": "document_start"` — runs before the DOM is built and before the page's scripts; hooks `window.fetch` early and reports the inject-time state |
 
 ## Load them
 
@@ -16,6 +17,9 @@ Reference MODs that target <https://www.google.com/>. Each folder is a MOD
 3. Make sure the MODs are enabled, then open <https://www.google.com/>.
    - `hello-google` shows a banner at the top.
    - `options-playground` shows a floating panel.
+   - `document-start` shows a green panel at the bottom-left reporting that, at
+     inject time, `document.body` was absent and `readyState` was `loading` — the
+     proof it ran at `document_start` — plus a live count of intercepted `fetch()` calls.
 4. With the Google tab focused, open the extension **popup** and expand
    `options-playground`. Toggle / type / pick choices / press **Ping** — the panel
    and the **Status** label update live (no reload). The **Jump to link** dropdown
