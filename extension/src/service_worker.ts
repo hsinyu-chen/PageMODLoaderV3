@@ -33,18 +33,10 @@ function ___pml__inject_style(style: string) {
     // documentElement (<html>); the browser still applies the style and relocates it once <head> exists.
     (document.head ?? document.documentElement).append(stylee);
 }
-function ___pml__clean(eid: string) {
-    chrome.runtime.sendMessage(eid, {
-        type: 'clean'
-    })
-}
 
 function buildScripts(mod: Mod) {
     const js = [{
-        code: `${___pml__notify};${___pml__inject_style};${___pml__clean}`
-    },
-    {
-        code: `___pml__clean('${chrome.runtime.id}')`
+        code: `${___pml__notify};${___pml__inject_style}`
     }]
     // __PML_EID__/__PML_NAME__ (and, for encrypt mods, the crypto impl + __PML_KEY__ baked by
     // cryptoBootstrap) live only in this IIFE closure — never on window — so @libs/pml (inlined into
@@ -186,10 +178,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     delete tabScriptTracker[tabId]
     clearTabOptionState(tabId)
 })
-// Navigating to a non-modded page sends no 'clean' (no mod runs there), so clear per-tab option
-// state on any navigation start to avoid leaking it until the tab closes.
+// Cleanup is keyed to navigation, not to "first mod injected" — mods can inject at different
+// runAt timings, so a document_end mod must not wipe a document_start mod's already-recorded
+// results. 'loading' fires before any mod runs, so the fresh page repopulates from a clean slate.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (changeInfo.status === 'loading') clearTabOptionState(tabId)
+    if (changeInfo.status !== 'loading') return
+    clearTabOptionState(tabId)
+    tabScriptTracker[tabId] = {}
+    chrome.action.setBadgeText({ text: '', tabId })
 })
 chrome.runtime.onMessage.addListener((request, sender, response) => {
     if (request === 'update') {
@@ -305,15 +301,11 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         return true // async: key lookup + (for poll) held until a value changes
     }
     if (request && sender.tab?.id) {
-        if (!tabScriptTracker[sender.tab.id] || request.type === 'clean') {
+        // Lazy init for a tab the SW didn't see navigate (e.g. SW restarted mid-page); navigation
+        // resets are handled in tabs.onUpdated.
+        if (!tabScriptTracker[sender.tab.id]) {
             tabScriptTracker[sender.tab.id] = {}
         }
-        // 'clean' fires as a page (re)loads — drop the old page's per-tab option state so dynamic
-        // choices, button counts, and dead pollers don't bleed across navigations in the same tab.
-        if (request.type === 'clean') {
-            clearTabOptionState(sender.tab.id)
-        }
-
         if (request.type === 'userScriptExcute') {
             if (!tabScriptTracker[sender.tab.id][request.name]) {
                 tabScriptTracker[sender.tab.id][request.name] = { name: request.name, results: [] }

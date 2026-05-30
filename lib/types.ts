@@ -1,7 +1,7 @@
 
 export type InjectFileType = 'script' | 'style'
-export type ModRunAt = 'document_start' | 'document_end' | 'document_idle'
-export const MOD_RUN_AT: readonly ModRunAt[] = ['document_start', 'document_end', 'document_idle']
+export const MOD_RUN_AT = ['document_start', 'document_end', 'document_idle'] as const
+export type ModRunAt = typeof MOD_RUN_AT[number]
 export const DEFAULT_RUN_AT: ModRunAt = 'document_end'
 
 export type ModOptionType = 'toggle' | 'text' | 'dropdown' | 'checklist' | 'button' | 'label'
@@ -92,9 +92,6 @@ export type UserScriptNotify = {
     file: string,
     fileType: string,
     error: any
-}
-export type UserScriptClean = {
-    type: 'clean'
 }
 export type UserScriptExcutingResult = {
     file: string,
