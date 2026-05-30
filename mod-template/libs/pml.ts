@@ -42,6 +42,7 @@ let _seeded = false              // loop has fetched its first snapshot; _values
 let _needRepush = false          // a poll failed (likely SW restart) → re-push our dynamic state
 let _optSnapshot: string | null = null
 let _wake: ((v: null) => void) | null = null // resolve to abort the in-flight long-poll (BFCache restore)
+let _woken = false               // the last poll abort was a BFCache wake, not a recycled SW → skip back-off
 const _subs: Array<(values: PmlValues) => void> = []
 const _immediate: Array<(values: PmlValues) => void> = [] // awaiting their first (immediate) emit
 const _buttons = new Map<string, { last: number, cbs: Array<() => void> }>()
@@ -132,6 +133,7 @@ if (typeof addEventListener === 'function') {
     addEventListener('pageshow', e => {
         if (!(e as PageTransitionEvent).persisted) return
         _needRepush = true
+        _woken = true
         _wake?.(null)
         _ensureLoop()
     })
@@ -147,6 +149,7 @@ async function _loop(): Promise<void> {
         try {
             // Until seeded, force rev=null for an immediate snapshot to seed baselines.
             const r = await _poll(_seeded ? _rev : null)
+            _woken = false
             _rev = r.rev; _btn = r.btn; _values = r.values
             _dispatch(r.values) // on the seed pass this only sets baselines (fires nothing)
             if (!_seeded) {
@@ -158,7 +161,9 @@ async function _loop(): Promise<void> {
             // extension reload/update permanently invalidates this page's context — stop, don't busy-loop
             if ((e?.message ?? String(e)).includes('context invalidated')) { _looping = false; return }
             _needRepush = true // SW recycled / port closed — back off, re-poll (also wakes the SW)
-            await _sleep(1000)
+            // A BFCache wake has no transient to absorb; re-poll at once so restore feels instant.
+            if (_woken) _woken = false
+            else await _sleep(1000)
         }
     }
     _looping = false

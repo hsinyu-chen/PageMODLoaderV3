@@ -176,11 +176,6 @@ function clearTabOptionState(tabId: number): void {
     flushPollers(p => p.tabId === tabId)
 }
 
-chrome.tabs.onCreated.addListener((tab) => {
-    if (tab.id) {
-        tabScriptTracker[tab.id] = {};
-    }
-})
 chrome.tabs.onRemoved.addListener((tabId) => {
     delete tabScriptTracker[tabId]
     clearTabOptionState(tabId)
@@ -191,8 +186,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // the reset always lands before the new page's mods repopulate the tracker (via lazy init below).
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status !== 'loading') return
-    clearTabOptionState(tabId)
     delete tabScriptTracker[tabId]
+    clearTabOptionState(tabId)
     chrome.action.setBadgeText({ text: '', tabId })
 })
 chrome.runtime.onMessage.addListener((request, sender, response) => {
