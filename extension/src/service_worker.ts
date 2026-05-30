@@ -55,15 +55,21 @@ function buildScripts(mod: Mod) {
             code: `
         (async ()=>{
             ${bootstrap}
+            let __pml_err;
             try{
                 /* user script start */;
                 ${code}
                 ;/* user script end */
-                ___pml__notify('${chrome.runtime.id}','${mod.name}','${file.path}','${file.type}')
             }catch(e){
                 console.error(e)
-                ___pml__notify('${chrome.runtime.id}','${mod.name}','${file.path}','${file.type}',\`\${e}\`)
+                __pml_err = \`\${e}\`
             }
+            const __pml_report = () => ___pml__notify('${chrome.runtime.id}','${mod.name}','${file.path}','${file.type}', __pml_err);
+            __pml_report();
+            // The SW wipes per-tab state on navigation and a BFCache-restored page is not re-injected,
+            // so without re-announcing here the popup would list no mods (options unsettable). The
+            // listener survives BFCache with the frozen page; 'persisted' fires only on restore.
+            addEventListener('pageshow', e => { if (e.persisted) __pml_report(); });
         })();`});
 
     }
@@ -313,13 +319,16 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
                 tabScriptTracker[sender.tab.id][request.name] = { name: request.name, results: [] }
             }
             const result = tabScriptTracker[sender.tab.id][request.name];
-
-            result.results.push({
+            const entry = {
                 file: request.file,
                 type: request.fileType,
                 success: !request.error,
                 error: request.error
-            })
+            }
+            // Overwrite in place keyed by file+type: a mod re-announces itself on BFCache restore
+            // (see buildScripts' pageshow handler), so a blind push would duplicate every result.
+            const i = result.results.findIndex(r => r.file === entry.file && r.type === entry.type)
+            if (i === -1) result.results.push(entry); else result.results[i] = entry
         }
         const count = Object.values(tabScriptTracker[sender.tab.id]).length;
         chrome.action.setBadgeText({

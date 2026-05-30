@@ -41,6 +41,7 @@ let _looping = false
 let _seeded = false              // loop has fetched its first snapshot; _values/baselines are valid
 let _needRepush = false          // a poll failed (likely SW restart) → re-push our dynamic state
 let _optSnapshot: string | null = null
+let _wake: ((v: null) => void) | null = null // resolve to abort the in-flight long-poll (BFCache restore)
 const _subs: Array<(values: PmlValues) => void> = []
 const _immediate: Array<(values: PmlValues) => void> = [] // awaiting their first (immediate) emit
 const _buttons = new Map<string, { last: number, cbs: Array<() => void> }>()
@@ -49,10 +50,15 @@ const _choices = new Map<string, PmlChoice[]>()
 const _labels = new Map<string, string>()
 
 async function _poll(rev: number | null): Promise<{ rev: number, btn: number, values: PmlValues }> {
-    const resp = await _send(__PML_EID__, _msg({ type: 'pmlPoll', rev, btn: _btn }))
-    // empty ⇒ the SW dropped the message (downgrade / tampered / key mismatch); surface it clearly
-    // instead of a cryptic TypeError on resp.enc — _loop catches and retries either way.
-    if (!resp) throw new Error('[pml] empty poll response (dropped by the extension)')
+    const resp = await Promise.race([
+        _send(__PML_EID__, _msg({ type: 'pmlPoll', rev, btn: _btn })),
+        new Promise<null>(resolve => { _wake = resolve }) // pageshow(persisted) resolves this to abort a held poll
+    ])
+    _wake = null
+    // empty ⇒ the SW dropped the message (downgrade / tampered / key mismatch), or a BFCache restore
+    // woke us to re-register; surface it clearly instead of a cryptic TypeError on resp.enc — _loop
+    // catches and retries either way.
+    if (!resp) throw new Error('[pml] empty poll response (dropped by the extension, or woken on BFCache restore)')
     if (_enc && typeof resp.enc !== 'string') throw new Error('[pml] expected a sealed response, got plaintext/malformed')
     return (_enc ? __pmlCrypto.pmlOpen(__PML_KEY__, resp.enc) : resp) as { rev: number, btn: number, values: PmlValues }
 }
@@ -116,6 +122,19 @@ function _ensureLoop(): void {
     if (_looping) return
     _looping = true
     void _loop()
+}
+
+// A BFCache restore freezes the page: the held long-poll is severed and the SW drops this tab's
+// poller, yet the page is never re-injected — so the loop would sit on a dead poll and option
+// changes would stop arriving. The listener survives BFCache with the frozen page; 'persisted'
+// fires only on restore. Wake the loop to re-poll (re-registering the poller) and re-push state.
+if (typeof addEventListener === 'function') {
+    addEventListener('pageshow', e => {
+        if (!(e as PageTransitionEvent).persisted) return
+        _needRepush = true
+        _wake?.(null)
+        _ensureLoop()
+    })
 }
 
 // Isolate mod-author callbacks: one throwing handler must not abort the others or the poll loop.
