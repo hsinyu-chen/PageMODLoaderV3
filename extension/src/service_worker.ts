@@ -1,7 +1,7 @@
 import {
     Mod, ModDb, ModExcutionResultDb,
     ModOptionsDb, ModOptionValues, TabDynamicChoices, TabDynamicLabels, ModOptionChoice,
-    STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, STORAGE_MOD_KEYS,
+    STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, STORAGE_MOD_KEYS, DEFAULT_RUN_AT,
     MSG_PML, MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON,
     resolveOptionValue, ownValue
 } from "@lib/types";
@@ -29,7 +29,9 @@ function ___pml__notify(eid: string, name: string, file: string, type: string, e
 function ___pml__inject_style(style: string) {
     const stylee = document.createElement('style');
     stylee.textContent = style;
-    document.head.append(stylee);
+    // At runAt 'document_start' the DOM isn't built yet — document.head is null, so fall back to
+    // documentElement (<html>); the browser still applies the style and relocates it once <head> exists.
+    (document.head ?? document.documentElement).append(stylee);
 }
 function ___pml__clean(eid: string) {
     chrome.runtime.sendMessage(eid, {
@@ -96,7 +98,7 @@ function registScripts(): Promise<void> {
                     matches: typeof mod.match === 'string' ? [mod.match] : mod.match,
                     js: buildScripts(mod),
                     world: 'MAIN',
-                    runAt: 'document_end'
+                    runAt: mod.runAt ?? DEFAULT_RUN_AT
                 });
             }
             await chrome.userScripts.unregister();

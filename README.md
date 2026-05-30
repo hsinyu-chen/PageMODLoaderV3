@@ -53,6 +53,8 @@ open `config.json` , the  schema in the config should like following:
 the `match` field can be string or array, for the match syntax , please see : [Match patterns(google dev)](https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns)
 the script and style will inject(excute) to page sames as the order you put in the `inject` array
 
+optionally add a top-level `"runAt"` field to control injection timing — one of `"document_start"`, `"document_end"` (default), or `"document_idle"`. Pick `"document_start"` to run before the page's own scripts (e.g. to hook `window.fetch` early); note the DOM isn't built yet at that point, so guard any DOM access.
+
 ### 5. load MODs
 
 click on extension icon , click `Option` , click `Select Mod Folder` and select your root folder , browser will ask permission to read the folder

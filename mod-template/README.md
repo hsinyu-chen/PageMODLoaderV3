@@ -63,6 +63,7 @@ Notes:
 - **Value options are global** (apply to every matching tab); **buttons, dynamic choices and labels are per-tab** (only the active tab).
 - `dropdown`/`checklist` can set `"dynamic": true` and omit `choices` (or keep them as a fallback); the live list comes from `setChoices`.
 - Set top-level `"encrypt": true` in `config.json` to seal this mod's whole option channel (AES-256-GCM, per-mod key baked into the closure) — use it when an option holds a secret. The `@libs/pml` API is unchanged; see [Encrypting the channel](../README.md#encrypting-the-channel-optional).
+- Set top-level `"runAt"` in `config.json` to control injection timing: `"document_start"`, `"document_end"` (default), or `"document_idle"`. `"document_start"` runs before the page's scripts but before the DOM is built — guard any DOM access.
 
 ### Without `@libs/pml`
 

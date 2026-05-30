@@ -1,5 +1,8 @@
 
 export type InjectFileType = 'script' | 'style'
+export type ModRunAt = 'document_start' | 'document_end' | 'document_idle'
+export const MOD_RUN_AT: readonly ModRunAt[] = ['document_start', 'document_end', 'document_idle']
+export const DEFAULT_RUN_AT: ModRunAt = 'document_end'
 
 export type ModOptionType = 'toggle' | 'text' | 'dropdown' | 'checklist' | 'button' | 'label'
 export type ModOptionChoice = { value: string, label: string }
@@ -61,7 +64,10 @@ export type ModelConfig = {
     options?: ModOption[],
     // Opt in to encrypting this mod's entire option/UI channel (AES-256-GCM). Costs ~10.5kb of
     // injected bootstrap; off by default so secret-free mods stay lean.
-    encrypt?: boolean
+    encrypt?: boolean,
+    // Injection timing, passed straight to chrome.userScripts. Defaults to 'document_end'.
+    // 'document_start' runs before the DOM is built — a mod choosing it must handle a not-yet-ready DOM.
+    runAt?: ModRunAt
 }
 export type ModFile = {
     file: string
@@ -75,7 +81,8 @@ export type Mod = {
     match: string | string[],
     files: ModFile[],
     options?: ModOption[],
-    encrypt?: boolean
+    encrypt?: boolean,
+    runAt?: ModRunAt
 }
 
 export type ModDb = { [key: string]: Mod }
