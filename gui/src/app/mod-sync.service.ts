@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Mod, ModDb, ModelConfig, ModOption, ModOptionType } from '@lib/types';
+import { Mod, ModDb, ModelConfig, ModOption, ModOptionType, ModRunAt, MOD_RUN_AT } from '@lib/types';
 import { getFileHandleDeep, readFile } from '../helpers';
 import { loadDirHandle, saveDirHandle } from '../dir-handle-db';
 
@@ -79,9 +79,13 @@ export class ModSyncService {
         if (obj.encrypt !== undefined && typeof obj.encrypt !== 'boolean') {
           throw new Error('"encrypt" must be a boolean');
         }
+        if (obj.runAt !== undefined && !MOD_RUN_AT.includes(obj.runAt as ModRunAt)) {
+          throw new Error(`"runAt" must be one of ${MOD_RUN_AT.join(', ')}`);
+        }
         const mod: Mod = {
           match: obj.match, name: entry.name, files: [], enabled,
           ...(options ? { options } : {}), ...(obj.encrypt ? { encrypt: true } : {}),
+          ...(obj.runAt ? { runAt: obj.runAt } : {}),
         };
 
         for (const injection of obj.inject) {

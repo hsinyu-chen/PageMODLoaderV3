@@ -49,6 +49,8 @@ npm run typecheck   # optional: tsc --noEmit
 ```
 **If a referenced file doesn't exist on disk, the whole MOD fails to load** (not silently skipped) — so a MOD with no styles must remove the `dist/index.css` entry, not leave it.
 
+**`runAt`** (optional) — injection timing, passed straight to `chrome.userScripts`. One of `"document_start"`, `"document_end"` (default), `"document_idle"`. Use `"document_start"` to run before the page's own scripts (e.g. to hook `window.fetch` before the page captures it) — but at that point the DOM isn't built yet, so guard any `document.body`/`querySelector` access (wait for `DOMContentLoaded` if you need the DOM).
+
 ### 4. Load in the extension
 In the extension's **Options** page → **Select Mod Folder** → pick the folder that contains your MOD folder(s). Subsequent rebuilds are picked up on the next page load; re-select / re-sync if a MOD's `config.json` changed.
 
@@ -90,7 +92,7 @@ setLabel('status', 'ready');                  // update a read-only label live i
 ## Development Details
 
 ### Execution Context
-- MODs run via `chrome.userScripts.register(...)` with `world: 'MAIN'`, `runAt: 'document_end'`.
+- MODs run via `chrome.userScripts.register(...)` with `world: 'MAIN'`, `runAt: 'document_end'` (configurable per MOD via `config.json` `runAt` — see Configure §).
 - So MOD code runs in the **page's main world** — it shares `window`, `document`, the page's `fetch`, event listeners, etc.
   - You can hook `window.fetch` to intercept the page's real requests.
   - Capture-phase listeners (`addEventListener(..., true)`) run before the page's own handlers.

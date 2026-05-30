@@ -1,7 +1,7 @@
 import {
     Mod, ModDb, ModExcutionResultDb,
     ModOptionsDb, ModOptionValues, TabDynamicChoices, TabDynamicLabels, ModOptionChoice,
-    STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, STORAGE_MOD_KEYS,
+    STORAGE_MOD_OPTIONS, STORAGE_MOD_OPTIONS_REV, STORAGE_MOD_KEYS, DEFAULT_RUN_AT,
     MSG_PML, MSG_PML_POLL, MSG_PML_CHOICES, MSG_PML_LABEL, MSG_PML_GET_DISPLAY, MSG_PML_LABEL_UPDATE, MSG_PML_BUTTON,
     resolveOptionValue, ownValue
 } from "@lib/types";
@@ -29,20 +29,15 @@ function ___pml__notify(eid: string, name: string, file: string, type: string, e
 function ___pml__inject_style(style: string) {
     const stylee = document.createElement('style');
     stylee.textContent = style;
-    document.head.append(stylee);
-}
-function ___pml__clean(eid: string) {
-    chrome.runtime.sendMessage(eid, {
-        type: 'clean'
-    })
+    // At runAt 'document_start' the DOM isn't built yet — document.head is null, so fall back to
+    // documentElement, then document itself for an empty doc with no root (the <style> becomes the
+    // root node, no throw); CSSOM applies the rules regardless of where the <style> node sits.
+    (document.head || document.documentElement || document).append(stylee);
 }
 
 function buildScripts(mod: Mod) {
     const js = [{
-        code: `${___pml__notify};${___pml__inject_style};${___pml__clean}`
-    },
-    {
-        code: `___pml__clean('${chrome.runtime.id}')`
+        code: `${___pml__notify};${___pml__inject_style}`
     }]
     // __PML_EID__/__PML_NAME__ (and, for encrypt mods, the crypto impl + __PML_KEY__ baked by
     // cryptoBootstrap) live only in this IIFE closure — never on window — so @libs/pml (inlined into
@@ -60,15 +55,21 @@ function buildScripts(mod: Mod) {
             code: `
         (async ()=>{
             ${bootstrap}
+            let __pml_err;
             try{
                 /* user script start */;
                 ${code}
                 ;/* user script end */
-                ___pml__notify('${chrome.runtime.id}','${mod.name}','${file.path}','${file.type}')
             }catch(e){
                 console.error(e)
-                ___pml__notify('${chrome.runtime.id}','${mod.name}','${file.path}','${file.type}',\`\${e}\`)
+                __pml_err = \`\${e}\`
             }
+            const __pml_report = () => ___pml__notify('${chrome.runtime.id}','${mod.name}','${file.path}','${file.type}', __pml_err);
+            __pml_report();
+            // The SW wipes per-tab state on navigation and a BFCache-restored page is not re-injected,
+            // so without re-announcing here the popup would list no mods (options unsettable). The
+            // listener survives BFCache with the frozen page; 'persisted' fires only on restore.
+            addEventListener('pageshow', e => { if (e.persisted) __pml_report(); });
         })();`});
 
     }
@@ -96,7 +97,7 @@ function registScripts(): Promise<void> {
                     matches: typeof mod.match === 'string' ? [mod.match] : mod.match,
                     js: buildScripts(mod),
                     world: 'MAIN',
-                    runAt: 'document_end'
+                    runAt: mod.runAt ?? DEFAULT_RUN_AT
                 });
             }
             await chrome.userScripts.unregister();
@@ -175,19 +176,19 @@ function clearTabOptionState(tabId: number): void {
     flushPollers(p => p.tabId === tabId)
 }
 
-chrome.tabs.onCreated.addListener((tab) => {
-    if (tab.id) {
-        tabScriptTracker[tab.id] = {};
-    }
-})
 chrome.tabs.onRemoved.addListener((tabId) => {
     delete tabScriptTracker[tabId]
     clearTabOptionState(tabId)
 })
-// Navigating to a non-modded page sends no 'clean' (no mod runs there), so clear per-tab option
-// state on any navigation start to avoid leaking it until the tab closes.
+// Cleanup is keyed to navigation, not to "first mod injected" — mods can inject at different
+// runAt timings, so a document_end mod must not wipe a document_start mod's already-recorded
+// results. The browser-process 'loading' event precedes any mod's renderer-side sendMessage, so
+// the reset always lands before the new page's mods repopulate the tracker (via lazy init below).
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (changeInfo.status === 'loading') clearTabOptionState(tabId)
+    if (changeInfo.status !== 'loading') return
+    delete tabScriptTracker[tabId]
+    clearTabOptionState(tabId)
+    chrome.action.setBadgeText({ text: '', tabId })
 })
 chrome.runtime.onMessage.addListener((request, sender, response) => {
     if (request === 'update') {
@@ -303,27 +304,26 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         return true // async: key lookup + (for poll) held until a value changes
     }
     if (request && sender.tab?.id) {
-        if (!tabScriptTracker[sender.tab.id] || request.type === 'clean') {
+        // Lazy init for a tab the SW didn't see navigate (e.g. SW restarted mid-page); navigation
+        // resets are handled in tabs.onUpdated.
+        if (!tabScriptTracker[sender.tab.id]) {
             tabScriptTracker[sender.tab.id] = {}
         }
-        // 'clean' fires as a page (re)loads — drop the old page's per-tab option state so dynamic
-        // choices, button counts, and dead pollers don't bleed across navigations in the same tab.
-        if (request.type === 'clean') {
-            clearTabOptionState(sender.tab.id)
-        }
-
         if (request.type === 'userScriptExcute') {
             if (!tabScriptTracker[sender.tab.id][request.name]) {
                 tabScriptTracker[sender.tab.id][request.name] = { name: request.name, results: [] }
             }
             const result = tabScriptTracker[sender.tab.id][request.name];
-
-            result.results.push({
+            const entry = {
                 file: request.file,
                 type: request.fileType,
                 success: !request.error,
                 error: request.error
-            })
+            }
+            // Overwrite in place keyed by file+type: a mod re-announces itself on BFCache restore
+            // (see buildScripts' pageshow handler), so a blind push would duplicate every result.
+            const i = result.results.findIndex(r => r.file === entry.file && r.type === entry.type)
+            if (i === -1) result.results.push(entry); else result.results[i] = entry
         }
         const count = Object.values(tabScriptTracker[sender.tab.id]).length;
         chrome.action.setBadgeText({

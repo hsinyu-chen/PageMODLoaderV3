@@ -10,7 +10,7 @@ import esbuild from 'rollup-plugin-esbuild';
 const libs = fileURLToPath(new URL('../libs', import.meta.url));
 const demos = fileURLToPath(new URL('../../demo-mods', import.meta.url));
 
-const names = ['hello-google', 'options-playground'];
+const names = ['hello-google', 'options-playground', 'document-start'];
 
 export default names.map(name => ({
 	input: `${demos}/${name}/src/index.tsx`,
