@@ -120,10 +120,22 @@ lean. The `@libs/pml` API is identical either way — the helper detects the mod
 ### Reading options from MOD code
 
 Your MOD reads values, reacts to changes, handles button presses, and pushes dynamic choices /
-label text through the `@libs/pml` helpers (`getOptions`, `onOptionChange`, `onButton`,
-`setChoices`, `setLabel`). See the **[MOD template README](mod-template/README.md)** for the API and
-usage, and **[demo-mods](demo-mods)** for ready-to-load examples (including one that exercises every
-control type).
+label text through the `@libs/pml` helpers:
+
+```ts
+import { getOptions, onOptionChange, onButton, setChoices, setLabel } from '@libs/pml';
+
+const o = await getOptions();                 // one-off snapshot; o[key] is each option's value
+onOptionChange(v => apply(v));                // fires once on load AND on every later change
+onButton('refresh', () => location.reload()); // per-tab; fires on each popup press
+setChoices('links', [{ value: 'a', label: 'A' }]); // fill a "dynamic": true dropdown/checklist
+setLabel('status', 'ready');                  // update a read-only label, live in an open popup
+```
+
+`getOptions()` is the common case — read the current values once (a button key reads as its press
+count); `onOptionChange` firing on load *and* on change lets one handler apply settings initially and
+live. See the **[MOD template README](mod-template/README.md)** and **[demo-mods](demo-mods)** for
+fuller examples (including one that exercises every control type).
 
 ### Without `@libs/pml`
 
