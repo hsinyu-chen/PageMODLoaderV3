@@ -30,8 +30,9 @@ function ___pml__inject_style(style: string) {
     const stylee = document.createElement('style');
     stylee.textContent = style;
     // At runAt 'document_start' the DOM isn't built yet — document.head is null, so fall back to
-    // documentElement (<html>); the browser still applies the style and relocates it once <head> exists.
-    (document.head ?? document.documentElement).append(stylee);
+    // documentElement, then document itself for an empty doc with no root (the <style> becomes the
+    // root node, no throw); CSSOM applies the rules regardless of where the <style> node sits.
+    (document.head || document.documentElement || document).append(stylee);
 }
 
 function buildScripts(mod: Mod) {
@@ -180,11 +181,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 })
 // Cleanup is keyed to navigation, not to "first mod injected" — mods can inject at different
 // runAt timings, so a document_end mod must not wipe a document_start mod's already-recorded
-// results. 'loading' fires before any mod runs, so the fresh page repopulates from a clean slate.
+// results. The browser-process 'loading' event precedes any mod's renderer-side sendMessage, so
+// the reset always lands before the new page's mods repopulate the tracker (via lazy init below).
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status !== 'loading') return
     clearTabOptionState(tabId)
-    tabScriptTracker[tabId] = {}
+    delete tabScriptTracker[tabId]
     chrome.action.setBadgeText({ text: '', tabId })
 })
 chrome.runtime.onMessage.addListener((request, sender, response) => {
