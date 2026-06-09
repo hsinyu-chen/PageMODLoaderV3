@@ -18,7 +18,7 @@ function isUserScriptsAvailable() {
     }
 }
 function ___pml__notify(eid: string, name: string, file: string, type: string, error?: any) {
-    chrome.runtime.sendMessage(eid, {
+    chrome.runtime.sendMessage({
         type: 'userScriptExcute',
         name: name,
         file: file,
@@ -42,7 +42,23 @@ function buildScripts(mod: Mod) {
     // __PML_EID__/__PML_NAME__ (and, for encrypt mods, the crypto impl + __PML_KEY__ baked by
     // cryptoBootstrap) live only in this IIFE closure — never on window — so @libs/pml (inlined into
     // the mod bundle) can reach them while the page cannot read or tamper with them.
-    const bootstrap = `${cryptoBootstrap(mod)}const __PML_EID__=${JSON.stringify(chrome.runtime.id)},__PML_NAME__=${JSON.stringify(mod.name)};`;
+    const isUserScript = mod.world === 'USER_SCRIPT';
+    const polyfill = isUserScript ? `if (globalThis.chrome?.runtime?.sendMessage) {
+  const _sm = globalThis.chrome.runtime.sendMessage;
+  try {
+    Object.defineProperty(globalThis.chrome.runtime, 'sendMessage', {
+      value: function(...args) {
+        // Strip the extension ID to force an internal message, which routes to onUserScriptMessage.
+        // Google domains (like Gmail) restrict external messaging, so passing the ID causes failure.
+        const finalArgs = (args.length > 0 && args[0] === __PML_EID__) ? args.slice(1) : args;
+        return _sm.apply(globalThis.chrome.runtime, finalArgs);
+      },
+      configurable: true,
+      writable: true
+    });
+  } catch (e) {}
+}` : '';
+    const bootstrap = `${cryptoBootstrap(mod)}const __PML_EID__=${JSON.stringify(chrome.runtime.id)},__PML_NAME__=${JSON.stringify(mod.name)};${polyfill}`;
     for (const file of mod.files) {
         let code = '';
         if (file.type === 'script') {
