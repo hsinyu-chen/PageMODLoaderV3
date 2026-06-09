@@ -24,7 +24,7 @@ function ___pml__notify(eid: string, name: string, file: string, type: string, e
         file: file,
         fileType: type,
         error: error
-    })
+    });
 }
 function ___pml__inject_style(style: string) {
     const stylee = document.createElement('style');
@@ -42,7 +42,17 @@ function buildScripts(mod: Mod) {
     // __PML_EID__/__PML_NAME__ (and, for encrypt mods, the crypto impl + __PML_KEY__ baked by
     // cryptoBootstrap) live only in this IIFE closure — never on window — so @libs/pml (inlined into
     // the mod bundle) can reach them while the page cannot read or tamper with them.
-    const bootstrap = `${cryptoBootstrap(mod)}const __PML_EID__=${JSON.stringify(chrome.runtime.id)},__PML_NAME__=${JSON.stringify(mod.name)};`;
+    const isUserScript = mod.world === 'USER_SCRIPT';
+    const polyfill = isUserScript ? `if(globalThis.chrome?.runtime?.sendMessage){
+const _sm=globalThis.chrome.runtime.sendMessage;
+globalThis.chrome.runtime.sendMessage=function(){
+if(arguments.length>0&&arguments[0]===__PML_EID__){
+return _sm.apply(this,Array.prototype.slice.call(arguments,1));
+}
+return _sm.apply(this,arguments);
+};
+}` : '';
+    const bootstrap = `${cryptoBootstrap(mod)}const __PML_EID__=${JSON.stringify(chrome.runtime.id)},__PML_NAME__=${JSON.stringify(mod.name)};${polyfill}`;
     for (const file of mod.files) {
         let code = '';
         if (file.type === 'script') {
@@ -96,12 +106,20 @@ function registScripts(): Promise<void> {
                     id: mod.name,
                     matches: typeof mod.match === 'string' ? [mod.match] : mod.match,
                     js: buildScripts(mod),
-                    world: 'MAIN',
+                    world: mod.world ?? 'MAIN',
+
                     runAt: mod.runAt ?? DEFAULT_RUN_AT
                 });
             }
             await chrome.userScripts.unregister();
             if (scripts.length) {
+                if (chrome.userScripts.configureWorld) {
+                    try {
+                        await chrome.userScripts.configureWorld({ messaging: true });
+                    } catch (cwErr) {
+                        console.error('configureWorld failed:', cwErr);
+                    }
+                }
                 await chrome.userScripts.register(scripts);
             }
         } catch (e) {
@@ -184,9 +202,16 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // runAt timings, so a document_end mod must not wipe a document_start mod's already-recorded
 // results. The browser-process 'loading' event precedes any mod's renderer-side sendMessage, so
 // the reset always lands before the new page's mods repopulate the tracker (via lazy init below).
+const tabUpdateTimes: Record<number, number> = {}
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status !== 'loading') return
+    // Prevent race condition: if we received a script injection message within the last 2000ms,
+    // this 'loading' event is likely the browser catching up to the initial page load.
+    if (tabUpdateTimes[tabId] && Date.now() - tabUpdateTimes[tabId] < 2000) {
+        return
+    }
     delete tabScriptTracker[tabId]
+    delete tabUpdateTimes[tabId]
     clearTabOptionState(tabId)
     chrome.action.setBadgeText({ text: '', tabId })
 })
@@ -211,8 +236,18 @@ chrome.runtime.onMessage.addListener((request, sender, response) => {
         response({ choices: tabDynamicChoices[tabId] ?? {}, labels: tabDynamicLabels[tabId] ?? {} })
         return
     }
-    response(tabScriptTracker[request.query])
+    const handled = handlePMLMessageFromPageOrUserScript(request, sender, response)
+    if (handled) return true
+    if (request.query !== undefined) {
+        response(tabScriptTracker[request.query])
+    }
 });
+
+chrome.runtime.onMessageExternal.addListener(handlePMLMessageFromPageOrUserScript)
+if (chrome.runtime.onUserScriptMessage) {
+    chrome.runtime.onUserScriptMessage.addListener(handlePMLMessageFromPageOrUserScript)
+}
+
 // name/key from the MAIN world index our state objects — reject prototype-polluting values.
 function isUnsafeKey(s: unknown): boolean {
     return s !== undefined && (typeof s !== 'string' || s === '__proto__' || s === 'constructor' || s === 'prototype')
@@ -273,7 +308,7 @@ function dispatchPml(inner: any, name: string, tabId: number | undefined, channe
     response({ ok: true }) // unknown inner type — close the port
 }
 
-chrome.runtime.onMessageExternal.addListener((request: any, sender, response) => {
+function handlePMLMessageFromPageOrUserScript(request: any, sender: chrome.runtime.MessageSender, response: (msg?: any) => void) {
     if (isUnsafeKey(request?.name) || isUnsafeKey(request?.key)) return
     if (request && PML_TYPES.has(request.type)) {
         const name: string = request.name
@@ -304,6 +339,7 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
         return true // async: key lookup + (for poll) held until a value changes
     }
     if (request && sender.tab?.id) {
+        tabUpdateTimes[sender.tab.id] = Date.now();
         // Lazy init for a tab the SW didn't see navigate (e.g. SW restarted mid-page); navigation
         // resets are handled in tabs.onUpdated.
         if (!tabScriptTracker[sender.tab.id]) {
@@ -331,7 +367,8 @@ chrome.runtime.onMessageExternal.addListener((request: any, sender, response) =>
             tabId: sender.tab.id
         })
     }
-})
+}
+chrome.runtime.onMessageExternal.addListener(handlePMLMessageFromPageOrUserScript)
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return
     if (changes[STORAGE_MOD_KEYS]) invalidateKeyCache()
