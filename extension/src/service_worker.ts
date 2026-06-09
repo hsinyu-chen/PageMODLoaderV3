@@ -48,7 +48,9 @@ function buildScripts(mod: Mod) {
   try {
     Object.defineProperty(globalThis.chrome.runtime, 'sendMessage', {
       value: function(...args) {
-        const finalArgs = (args.length > 0 && args[0] === __PML_EID__) ? args : [__PML_EID__, ...args];
+        // Strip the extension ID to force an internal message, which routes to onUserScriptMessage.
+        // If the ID is included, Chrome treats it as an external message and blocks it.
+        const finalArgs = (args.length > 0 && args[0] === __PML_EID__) ? args.slice(1) : args;
         return _sm.apply(globalThis.chrome.runtime, finalArgs);
       },
       configurable: true,
