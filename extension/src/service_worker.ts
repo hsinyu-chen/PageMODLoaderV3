@@ -303,6 +303,9 @@ function dispatchPml(inner: any, name: string, tabId: number | undefined, channe
 }
 
 function handlePMLMessageFromPageOrUserScript(request: any, sender: chrome.runtime.MessageSender, response: (msg?: any) => void) {
+    if (sender.tab?.id) {
+        tabUpdateTimes[sender.tab.id] = Date.now();
+    }
     if (isUnsafeKey(request?.name) || isUnsafeKey(request?.key)) return
     if (request && PML_TYPES.has(request.type)) {
         const name: string = request.name
@@ -346,7 +349,6 @@ function handlePMLMessageFromPageOrUserScript(request: any, sender: chrome.runti
         }
         
         if (request.type === 'userScriptExcute') {
-            tabUpdateTimes[sender.tab.id] = Date.now();
             if (!tabScriptTracker[sender.tab.id][request.name]) {
                 tabScriptTracker[sender.tab.id][request.name] = { name: request.name, results: [] }
             }
