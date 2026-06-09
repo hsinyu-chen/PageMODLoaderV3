@@ -43,14 +43,17 @@ function buildScripts(mod: Mod) {
     // cryptoBootstrap) live only in this IIFE closure — never on window — so @libs/pml (inlined into
     // the mod bundle) can reach them while the page cannot read or tamper with them.
     const isUserScript = mod.world === 'USER_SCRIPT';
-    const polyfill = isUserScript ? `if(globalThis.chrome?.runtime?.sendMessage){
-const _sm=globalThis.chrome.runtime.sendMessage;
-globalThis.chrome.runtime.sendMessage=function(){
-if(arguments.length>0&&arguments[0]===__PML_EID__){
-return _sm.apply(this,Array.prototype.slice.call(arguments,1));
-}
-return _sm.apply(this,arguments);
-};
+    const polyfill = isUserScript ? `if (globalThis.chrome?.runtime?.sendMessage) {
+  const _sm = globalThis.chrome.runtime.sendMessage;
+  try {
+    Object.defineProperty(globalThis.chrome.runtime, 'sendMessage', {
+      value: function(...args) {
+        return _sm.apply(this, args.length > 0 && args[0] === __PML_EID__ ? args.slice(1) : args);
+      },
+      configurable: true,
+      writable: true
+    });
+  } catch (e) {}
 }` : '';
     const bootstrap = `${cryptoBootstrap(mod)}const __PML_EID__=${JSON.stringify(chrome.runtime.id)},__PML_NAME__=${JSON.stringify(mod.name)};${polyfill}`;
     for (const file of mod.files) {
@@ -195,6 +198,7 @@ function clearTabOptionState(tabId: number): void {
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+    delete tabUpdateTimes[tabId]
     delete tabScriptTracker[tabId]
     clearTabOptionState(tabId)
 })
@@ -205,9 +209,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 const tabUpdateTimes: Record<number, number> = {}
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status !== 'loading') return
-    // Prevent race condition: if we received a script injection message within the last 2000ms,
+    // Prevent race condition: if we received a script injection message within the last 500ms,
     // this 'loading' event is likely the browser catching up to the initial page load.
-    if (tabUpdateTimes[tabId] && Date.now() - tabUpdateTimes[tabId] < 2000) {
+    if (tabUpdateTimes[tabId] && Date.now() - tabUpdateTimes[tabId] < 500) {
+        delete tabUpdateTimes[tabId]
         return
     }
     delete tabScriptTracker[tabId]
@@ -368,7 +373,6 @@ function handlePMLMessageFromPageOrUserScript(request: any, sender: chrome.runti
         })
     }
 }
-chrome.runtime.onMessageExternal.addListener(handlePMLMessageFromPageOrUserScript)
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return
     if (changes[STORAGE_MOD_KEYS]) invalidateKeyCache()
