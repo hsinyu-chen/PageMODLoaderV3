@@ -34,6 +34,41 @@ function ___pml__inject_style(style: string) {
     // root node, no throw); CSSOM applies the rules regardless of where the <style> node sits.
     (document.head || document.documentElement || document).append(stylee);
 }
+// Inlined as an IIFE into each file's bootstrap (the SW never calls it): announce this file's load
+// result, then keep announcing on BFCache restore. eid/name come in as params so the call site can
+// pass the closure consts (__PML_EID__/__PML_NAME__) instead of re-baking them as literals.
+function ___pml__report_and_watch(eid: string, name: string, path: string, type: string, err: unknown) {
+    const report = () => ___pml__notify(eid, name, path, type, err);
+    report();
+    // The SW wipes per-tab state on navigation and a BFCache-restored page is not re-injected, so
+    // without re-announcing here the popup would list no mods (options unsettable). The listener
+    // survives BFCache with the frozen page; 'persisted' fires only on restore.
+    addEventListener('pageshow', e => { if (e.persisted) report(); });
+}
+// Serialized via toString() into a USER_SCRIPT mod's injected bootstrap (the SW never calls it). In
+// that world chrome.runtime.sendMessage(eid, msg) is treated as EXTERNAL messaging, which restrictive
+// domains (Gmail) block; dropping a leading own-id arg reroutes the call to the internal
+// onUserScriptMessage channel. eid is a parameter because __PML_EID__ lives only in the per-IIFE
+// closure, out of this function's scope.
+function ___pml__install_messaging_polyfill(eid: string) {
+    const runtime = globalThis.chrome?.runtime;
+    if (!runtime?.sendMessage) return;
+    // sendMessage is overloaded and we forward arbitrary (possibly arg-stripped) calls, so widen it.
+    const _sm = runtime.sendMessage as unknown as (...args: unknown[]) => unknown;
+    try {
+        Object.defineProperty(runtime, 'sendMessage', {
+            value: function (...args: unknown[]) {
+                const finalArgs = (args.length > 0 && args[0] === eid) ? args.slice(1) : args;
+                return _sm.apply(runtime, finalArgs);
+            },
+            configurable: true,
+            writable: true,
+        });
+    } catch (e) {
+        // A silent failure re-routes messaging back to the external path Gmail blocks — surface it.
+        console.warn('[PML] failed to install USER_SCRIPT sendMessage polyfill:', e);
+    }
+}
 
 function buildScripts(mod: Mod) {
     const js = [{
@@ -43,29 +78,16 @@ function buildScripts(mod: Mod) {
     // cryptoBootstrap) live only in this IIFE closure — never on window — so @libs/pml (inlined into
     // the mod bundle) can reach them while the page cannot read or tamper with them.
     const isUserScript = mod.world === 'USER_SCRIPT';
-    const polyfill = isUserScript ? `if (globalThis.chrome?.runtime?.sendMessage) {
-  const _sm = globalThis.chrome.runtime.sendMessage;
-  try {
-    Object.defineProperty(globalThis.chrome.runtime, 'sendMessage', {
-      value: function(...args) {
-        // Strip the extension ID to force an internal message, which routes to onUserScriptMessage.
-        // Google domains (like Gmail) restrict external messaging, so passing the ID causes failure.
-        const finalArgs = (args.length > 0 && args[0] === __PML_EID__) ? args.slice(1) : args;
-        return _sm.apply(globalThis.chrome.runtime, finalArgs);
-      },
-      configurable: true,
-      writable: true
-    });
-  } catch (e) {}
-}` : '';
+    // Inlined as an IIFE (not called by name) so it stays self-contained and name-independent;
+    // appended last so it patches sendMessage before @libs/pml captures it or notify runs.
+    const polyfill = isUserScript ? `(${___pml__install_messaging_polyfill})(__PML_EID__);` : '';
     const bootstrap = `${cryptoBootstrap(mod)}const __PML_EID__=${JSON.stringify(chrome.runtime.id)},__PML_NAME__=${JSON.stringify(mod.name)};${polyfill}`;
     for (const file of mod.files) {
         let code = '';
         if (file.type === 'script') {
             code = `${file.content}`;
         } else if (file.type === 'style') {
-            const styleParameter = file.content.replace(/"/g, '\\"').replace(/\n|\r\n|\r/g, "\\n");
-            code = `___pml__inject_style("${styleParameter}")`;
+            code = `___pml__inject_style(${JSON.stringify(file.content)})`;
         }
         js.push({
             code: `
@@ -80,12 +102,7 @@ function buildScripts(mod: Mod) {
                 console.error(e)
                 __pml_err = \`\${e}\`
             }
-            const __pml_report = () => ___pml__notify('${chrome.runtime.id}','${mod.name}','${file.path}','${file.type}', __pml_err);
-            __pml_report();
-            // The SW wipes per-tab state on navigation and a BFCache-restored page is not re-injected,
-            // so without re-announcing here the popup would list no mods (options unsettable). The
-            // listener survives BFCache with the frozen page; 'persisted' fires only on restore.
-            addEventListener('pageshow', e => { if (e.persisted) __pml_report(); });
+            (${___pml__report_and_watch})(__PML_EID__, __PML_NAME__, ${JSON.stringify(file.path)}, ${JSON.stringify(file.type)}, __pml_err);
         })();`});
 
     }
@@ -211,9 +228,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // the reset always lands before the new page's mods repopulate the tracker (via lazy init below).
 const tabCurrentDocumentId: Record<number, string> = {}
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    // Only wipe the state if this is a real navigation to a different URL.
-    // Fake/background 'loading' events (or F5 reloads) don't have changeInfo.url.
-    // For SPA pushState, status is not 'loading', so it's safely ignored.
+    // Early-clear only on a real top-level URL change. Phantom background 'loading' events, same-URL
+    // F5 reloads, and SPA pushState all lack a 'loading'+url pair and are skipped here. Chrome may
+    // even split status and url across separate onUpdated events, so this misses some real
+    // navigations too — the authoritative reset for those is the sender.documentId mismatch check in
+    // handlePMLMessageFromPageOrUserScript (it fires on the new document's first message, before the
+    // tracker repopulates).
     if (changeInfo.status !== 'loading' || !changeInfo.url) return
 
     delete tabScriptTracker[tabId]
