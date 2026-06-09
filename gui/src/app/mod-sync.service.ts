@@ -82,10 +82,14 @@ export class ModSyncService {
         if (obj.runAt !== undefined && !MOD_RUN_AT.includes(obj.runAt as ModRunAt)) {
           throw new Error(`"runAt" must be one of ${MOD_RUN_AT.join(', ')}`);
         }
+        if (obj.world !== undefined && obj.world !== 'MAIN' && obj.world !== 'USER_SCRIPT') {
+          throw new Error(`"world" must be 'MAIN' or 'USER_SCRIPT'`);
+        }
         const mod: Mod = {
           match: obj.match, name: entry.name, files: [], enabled,
           ...(options ? { options } : {}), ...(obj.encrypt ? { encrypt: true } : {}),
           ...(obj.runAt ? { runAt: obj.runAt } : {}),
+          ...(obj.world ? { world: obj.world } : {}),
         };
 
         for (const injection of obj.inject) {

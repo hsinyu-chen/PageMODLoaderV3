@@ -67,7 +67,8 @@ export type ModelConfig = {
     encrypt?: boolean,
     // Injection timing, passed straight to chrome.userScripts. Defaults to 'document_end'.
     // 'document_start' runs before the DOM is built — a mod choosing it must handle a not-yet-ready DOM.
-    runAt?: ModRunAt
+    runAt?: ModRunAt,
+    world?: 'MAIN' | 'USER_SCRIPT'
 }
 export type ModFile = {
     file: string
@@ -82,7 +83,8 @@ export type Mod = {
     files: ModFile[],
     options?: ModOption[],
     encrypt?: boolean,
-    runAt?: ModRunAt
+    runAt?: ModRunAt,
+    world?: 'MAIN' | 'USER_SCRIPT'
 }
 
 export type ModDb = { [key: string]: Mod }
