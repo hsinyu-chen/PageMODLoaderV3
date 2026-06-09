@@ -185,7 +185,6 @@ function clearTabOptionState(tabId: number): void {
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-    delete tabUpdateTimes[tabId]
     delete tabScriptTracker[tabId]
     delete tabCurrentDocumentId[tabId]
     clearTabOptionState(tabId)
@@ -194,17 +193,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // runAt timings, so a document_end mod must not wipe a document_start mod's already-recorded
 // results. The browser-process 'loading' event precedes any mod's renderer-side sendMessage, so
 // the reset always lands before the new page's mods repopulate the tracker (via lazy init below).
-const tabUpdateTimes: Record<number, number> = {}
 const tabCurrentDocumentId: Record<number, string> = {}
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (changeInfo.status !== 'loading') return
-    // Prevent race condition: if we received a script injection message within the last 500ms,
-    // this 'loading' event is likely the browser catching up to the initial page load.
-    if (tabUpdateTimes[tabId] && Date.now() - tabUpdateTimes[tabId] < 500) {
-        return
-    }
+    // Only wipe the state if this is a real navigation to a different URL.
+    // Fake/background 'loading' events (or F5 reloads) don't have changeInfo.url.
+    // For SPA pushState, status is not 'loading', so it's safely ignored.
+    if (changeInfo.status !== 'loading' || !changeInfo.url) return
+
     delete tabScriptTracker[tabId]
-    delete tabUpdateTimes[tabId]
     delete tabCurrentDocumentId[tabId]
     clearTabOptionState(tabId)
     chrome.action.setBadgeText({ text: '', tabId })
@@ -303,9 +299,6 @@ function dispatchPml(inner: any, name: string, tabId: number | undefined, channe
 }
 
 function handlePMLMessageFromPageOrUserScript(request: any, sender: chrome.runtime.MessageSender, response: (msg?: any) => void) {
-    if (sender.tab?.id) {
-        tabUpdateTimes[sender.tab.id] = Date.now();
-    }
     if (isUnsafeKey(request?.name) || isUnsafeKey(request?.key)) return
     if (request && PML_TYPES.has(request.type)) {
         const name: string = request.name
