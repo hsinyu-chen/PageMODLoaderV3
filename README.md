@@ -2,11 +2,13 @@
 
 javascript & css MOD loader from your local file, use any toolchain for MOD develop
 
-## Getting Start
-install from chrome web store [here](https://chromewebstore.google.com/detail/page-mod-loader-v3/mkchjogfokebijmjljphfmloimhaimcd)
+## Getting Started
 
-install from edge add-ons [here](https://microsoftedge.microsoft.com/addons/detail/page-mod-loader-v3/plgigadbfamioehogbacepodfafjlbib)
-# **you have to enable development mode in your extension page for this extension to work!**
+install from [Chrome Web Store](https://chromewebstore.google.com/detail/page-mod-loader-v3/mkchjogfokebijmjljphfmloimhaimcd)
+
+install from [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/page-mod-loader-v3/plgigadbfamioehogbacepodfafjlbib)
+
+**you have to enable development mode in your extension page for this extension to work!**
 
 ### 1. create root folder for your MODs
 
@@ -16,15 +18,18 @@ File system access API can't read folder from driver root , so make sure you don
 
 create a sub folder inside your root folder for your new MOD, and create `config.json` , for example if your root folder at `C:\Users\xxx\OneDrive\WebMODs`
 your folder structure should look like following:
-```
+
+```text
 WebMODs
  └ superCoolMod
     └ config.json
 ```
+
 ### 3. add js or/and css files
 
 you can excute as many scrips or add styles as you need , that's say you need a `index.js` and a `index.css` , just put files in your mod folder like:
-```
+
+```text
 WebMODs
  └ superCoolMod
     ├ index.js
@@ -35,6 +40,7 @@ WebMODs
 ### 4. setup config.json
 
 open `config.json` , the  schema in the config should like following:
+
 ```json
 {
     "match":"https://xxx.net/*",
@@ -50,6 +56,7 @@ open `config.json` , the  schema in the config should like following:
     ]
 }
 ```
+
 the `match` field can be string or array, for the match syntax , please see : [Match patterns(google dev)](https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns)
 the script and style will inject(excute) to page sames as the order you put in the `inject` array
 
@@ -68,7 +75,7 @@ you can put any files (like Typescript source code) in the folder , the extensio
 
 the `path` in `inject` setting can use nested path like `dist/main/abc.js`
 
-I have created a project template and basic file scaffolding script in [here](mod-template)
+I have created a project template and basic file scaffolding script in [mod-template](mod-template)
 
 ## Options UI
 
@@ -193,11 +200,8 @@ private closure, so a no-helper consumer seals with `__pmlCrypto.pmlSeal(__PML_K
 the response with `__pmlCrypto.pmlOpen(__PML_KEY__, enc)`. The service worker rejects any plaintext
 message for an encrypted MOD (no downgrade). Copying `pml.ts` handles all of this for you.
 
-## for who want build extension locally
+## For those who want to build the extension locally
 
-1. clone repo
-2. run `npm i` and `npm build` in gui and extension folder
-3. load unpackaged extension from `extension_dist` folder 
-
-
-
+1. Clone repo
+2. Run `npm i` and `npm build` in gui and extension folder
+3. Load unpackaged extension from `extension_dist` folder
