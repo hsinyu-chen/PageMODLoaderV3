@@ -48,7 +48,8 @@ function buildScripts(mod: Mod) {
   try {
     Object.defineProperty(globalThis.chrome.runtime, 'sendMessage', {
       value: function(...args) {
-        return _sm.apply(globalThis.chrome.runtime, args.length > 0 && args[0] === __PML_EID__ ? args.slice(1) : args);
+        const finalArgs = (args.length > 0 && args[0] === __PML_EID__) ? args : [__PML_EID__, ...args];
+        return _sm.apply(globalThis.chrome.runtime, finalArgs);
       },
       configurable: true,
       writable: true
@@ -347,7 +348,6 @@ function handlePMLMessageFromPageOrUserScript(request: any, sender: chrome.runti
         return true // async: key lookup + (for poll) held until a value changes
     }
     if (request && sender.tab?.id) {
-        tabUpdateTimes[sender.tab.id] = Date.now();
         const docId = sender.documentId;
         if (docId && tabCurrentDocumentId[sender.tab.id] !== docId) {
             tabCurrentDocumentId[sender.tab.id] = docId;
@@ -359,7 +359,9 @@ function handlePMLMessageFromPageOrUserScript(request: any, sender: chrome.runti
         if (!tabScriptTracker[sender.tab.id]) {
             tabScriptTracker[sender.tab.id] = {}
         }
+        
         if (request.type === 'userScriptExcute') {
+            tabUpdateTimes[sender.tab.id] = Date.now();
             if (!tabScriptTracker[sender.tab.id][request.name]) {
                 tabScriptTracker[sender.tab.id][request.name] = { name: request.name, results: [] }
             }
