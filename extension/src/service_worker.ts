@@ -18,7 +18,7 @@ function isUserScriptsAvailable() {
     }
 }
 function ___pml__notify(eid: string, name: string, file: string, type: string, error?: any) {
-    chrome.runtime.sendMessage({
+    chrome.runtime.sendMessage(eid, {
         type: 'userScriptExcute',
         name: name,
         file: file,
