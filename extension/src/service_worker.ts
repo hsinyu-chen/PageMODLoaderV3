@@ -48,7 +48,7 @@ function buildScripts(mod: Mod) {
   try {
     Object.defineProperty(globalThis.chrome.runtime, 'sendMessage', {
       value: function(...args) {
-        return _sm.apply(this, args.length > 0 && args[0] === __PML_EID__ ? args.slice(1) : args);
+        return _sm.apply(globalThis.chrome.runtime, args.length > 0 && args[0] === __PML_EID__ ? args.slice(1) : args);
       },
       configurable: true,
       writable: true
@@ -200,6 +200,7 @@ function clearTabOptionState(tabId: number): void {
 chrome.tabs.onRemoved.addListener((tabId) => {
     delete tabUpdateTimes[tabId]
     delete tabScriptTracker[tabId]
+    delete tabCurrentDocumentId[tabId]
     clearTabOptionState(tabId)
 })
 // Cleanup is keyed to navigation, not to "first mod injected" — mods can inject at different
@@ -207,6 +208,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // results. The browser-process 'loading' event precedes any mod's renderer-side sendMessage, so
 // the reset always lands before the new page's mods repopulate the tracker (via lazy init below).
 const tabUpdateTimes: Record<number, number> = {}
+const tabCurrentDocumentId: Record<number, string> = {}
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status !== 'loading') return
     // Prevent race condition: if we received a script injection message within the last 500ms,
@@ -217,6 +219,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     }
     delete tabScriptTracker[tabId]
     delete tabUpdateTimes[tabId]
+    delete tabCurrentDocumentId[tabId]
     clearTabOptionState(tabId)
     chrome.action.setBadgeText({ text: '', tabId })
 })
@@ -345,6 +348,12 @@ function handlePMLMessageFromPageOrUserScript(request: any, sender: chrome.runti
     }
     if (request && sender.tab?.id) {
         tabUpdateTimes[sender.tab.id] = Date.now();
+        const docId = sender.documentId;
+        if (docId && tabCurrentDocumentId[sender.tab.id] !== docId) {
+            tabCurrentDocumentId[sender.tab.id] = docId;
+            delete tabScriptTracker[sender.tab.id];
+            clearTabOptionState(sender.tab.id);
+        }
         // Lazy init for a tab the SW didn't see navigate (e.g. SW restarted mid-page); navigation
         // resets are handled in tabs.onUpdated.
         if (!tabScriptTracker[sender.tab.id]) {
