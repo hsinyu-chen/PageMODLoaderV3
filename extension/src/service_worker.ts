@@ -201,7 +201,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     // Prevent race condition: if we received a script injection message within the last 500ms,
     // this 'loading' event is likely the browser catching up to the initial page load.
     if (tabUpdateTimes[tabId] && Date.now() - tabUpdateTimes[tabId] < 500) {
-        delete tabUpdateTimes[tabId]
         return
     }
     delete tabScriptTracker[tabId]
